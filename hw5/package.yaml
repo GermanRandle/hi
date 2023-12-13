@@ -48,6 +48,7 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - hw5
+    - haskeline
 
 tests:
   hw5-test:
