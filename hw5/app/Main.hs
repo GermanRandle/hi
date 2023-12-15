@@ -11,7 +11,9 @@ main = runInputT defaultSettings loop
       minput <- getInputLine "hi> "
       case minput of
         Nothing -> return ()
-        Just "q" -> return ()
+        Just "" -> return ()
         Just input -> do
-          outputStrLn $ show $ parse input
+          case parse input of
+            (Left parseErr) -> outputStrLn $ "Parse error: " ++ show parseErr
+            (Right expr) -> outputStrLn $ "Parse success: " ++ show expr
           loop

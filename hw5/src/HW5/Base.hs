@@ -3,6 +3,7 @@ module HW5.Base
   , HiExpr (..)
   , HiFun (..)
   , HiValue (..)
+  , funName
   ) where
 
 data HiFun =
@@ -28,3 +29,9 @@ data HiError =
   | HiErrorArityMismatch
   | HiErrorDivideByZero
   deriving Show
+
+funName :: HiFun -> String
+funName HiFunDiv = "div"
+funName HiFunMul = "mul"
+funName HiFunAdd = "add"
+funName HiFunSub = "sub"

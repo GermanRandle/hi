@@ -35,6 +35,7 @@ library:
   source-dirs: src
   dependencies:
     - megaparsec
+    - parser-combinators
     - prettyprinter
     - prettyprinter-ansi-terminal
 
