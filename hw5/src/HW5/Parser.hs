@@ -2,6 +2,7 @@ module HW5.Parser
   ( parse
   ) where
 
+import Control.Applicative (optional)
 import Control.Applicative.Combinators (between, sepBy)
 import Control.Monad (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
@@ -15,18 +16,20 @@ import Text.Megaparsec.Error (ParseErrorBundle)
 type Parser = Parsec Void String
 
 parse :: String -> Either (ParseErrorBundle String Void) HiExpr
-parse = runParser parser ""
-
-parser :: Parser HiExpr
-parser = between space eof expr
+parse = runParser (between space eof expr) ""
 
 expr :: Parser HiExpr
-expr = makeExprParser term operatorTable
+expr = makeExprParser exprTerm operatorTable
 
-term :: Parser HiExpr
-term = numeric <|> function
+exprTerm :: Parser HiExpr
+exprTerm = do
+  object <- functionName <|> numeric
+  args <- optional functionArgs
+  return $ case args of
+    Just args' -> HiExprApply object args'
+    Nothing -> object
 
-lexeme :: Parser HiExpr -> Parser HiExpr
+lexeme :: Parser p -> Parser p
 lexeme = L.lexeme space
 
 takeToken :: String -> Parser String
@@ -49,11 +52,6 @@ functionArgs = do
   args <- expr `sepBy` takeToken ","
   void $ takeToken ")"
   return args
-
-function :: Parser HiExpr
-function = do
-  name <- functionName
-  HiExprApply name <$> functionArgs
 
 -- TODO IN T3
 operatorTable :: [[Operator Parser HiExpr]]

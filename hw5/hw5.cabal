@@ -33,9 +33,12 @@ library
   build-depends:
       base >=4.7 && <5
     , megaparsec
+    , mtl
     , parser-combinators
     , prettyprinter
     , prettyprinter-ansi-terminal
+    , scientific
+    , transformers
   default-language: Haskell2010
 
 executable hi

@@ -35,9 +35,12 @@ library:
   source-dirs: src
   dependencies:
     - megaparsec
+    - mtl
     - parser-combinators
     - prettyprinter
     - prettyprinter-ansi-terminal
+    - scientific
+    - transformers
 
 executables:
   hi:

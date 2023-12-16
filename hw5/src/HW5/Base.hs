@@ -1,5 +1,5 @@
 module HW5.Base
-  ( HiError
+  ( HiError (..)
   , HiExpr (..)
   , HiFun (..)
   , HiValue (..)
@@ -30,7 +30,7 @@ data HiError =
   | HiErrorDivideByZero
   deriving Show
 
-funName :: HiFun -> String
+funName :: HiFun -> String -- TODO: make a model with all function attributes?
 funName HiFunDiv = "div"
 funName HiFunMul = "mul"
 funName HiFunAdd = "add"

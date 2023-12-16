@@ -1,6 +1,8 @@
 module Main (main) where
 
+import HW5.Evaluator (eval)
 import HW5.Parser (parse)
+import HW5.Pretty (prettyValue)
 import System.Console.Haskeline
 
 main :: IO ()
@@ -15,5 +17,12 @@ main = runInputT defaultSettings loop
         Just input -> do
           case parse input of
             (Left parseErr) -> outputStrLn $ "Parse error: " ++ show parseErr
-            (Right expr) -> outputStrLn $ "Parse success: " ++ show expr
+            (Right expr) -> do
+              outputStrLn $ "Parse success: " ++ show expr
+              evaluated <- eval expr
+              case evaluated of
+                (Left evalErr) -> outputStrLn $ "Eval error: " ++ show evalErr
+                (Right value) -> do
+                  outputStrLn $ "Eval success: " ++ show value
+                  outputStrLn $ "Pretty: " ++ show (prettyValue value)
           loop
