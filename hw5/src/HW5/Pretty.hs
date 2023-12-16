@@ -4,13 +4,13 @@ module HW5.Pretty
 
 import Data.Ratio ((%), denominator, numerator)
 import Data.Scientific (fromRationalRepetendUnlimited, toRealFloat)
-import HW5.Base (HiValue (..))
+import HW5.Base (HiValue (..), funName)
 import Prettyprinter (Doc, (<+>), pretty, slash)
 import Prettyprinter.Render.Terminal (AnsiStyle)
 
 prettyValue :: HiValue -> Doc AnsiStyle
 prettyValue (HiValueNumber num) = prettyValueNumber num
-prettyValue _ = undefined
+prettyValue (HiValueFunction f) = pretty $ funName f
 
 prettyValueNumber :: Rational -> Doc AnsiStyle
 prettyValueNumber x = prettyValueNumber' (numerator x) (denominator x)
