@@ -20,12 +20,12 @@ parse = runParser (between space eof expr) ""
 expr :: Parser HiExpr
 expr = makeExprParser exprTerm operatorTable
 
-inBrackets :: Parser p -> Parser p
-inBrackets inner = takeToken "(" *> inner <* takeToken ")"
+inParentheses :: Parser p -> Parser p
+inParentheses inner = takeToken "(" *> inner <* takeToken ")"
 
 exprTerm :: Parser HiExpr
 exprTerm = do
-  w <- optional $ inBrackets expr
+  w <- optional $ inParentheses expr
   maybe exprTerm' return w
 
 exprTerm' :: Parser HiExpr
@@ -44,15 +44,15 @@ numeric :: Parser HiExpr
 numeric = lexeme $ HiExprValue . HiValueNumber . toRational <$> L.signed space L.scientific
 
 functionName :: Parser HiExpr
-functionName = support HiFunDiv
-           <|> support HiFunMul
-           <|> support HiFunAdd
-           <|> support HiFunSub where
+functionName = lexeme $ support HiFunDiv
+                    <|> support HiFunMul
+                    <|> support HiFunAdd
+                    <|> support HiFunSub where
   support :: HiFun -> Parser HiExpr
-  support f = lexeme $ HiExprValue . HiValueFunction . const f <$> takeToken (funName f)
+  support f = HiExprValue . HiValueFunction . const f <$> takeToken (funName f)
 
 functionArgs :: Parser [HiExpr]
-functionArgs = inBrackets $ expr `sepBy` takeToken ","
+functionArgs = inParentheses $ expr `sepBy` takeToken ","
 
 -- TODO IN T3
 operatorTable :: [[Operator Parser HiExpr]]
