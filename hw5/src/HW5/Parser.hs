@@ -23,6 +23,18 @@ expr = makeExprParser exprTerm operatorTable
 
 exprTerm :: Parser HiExpr
 exprTerm = do
+  w <- optional wrapped
+  maybe exprTerm' return w
+
+wrapped :: Parser HiExpr
+wrapped = do
+  void $ takeToken "("
+  e <- expr
+  void $ takeToken ")"
+  return e
+
+exprTerm' :: Parser HiExpr
+exprTerm' = do
   object <- functionName <|> numeric
   args <- optional functionArgs
   return $ case args of
