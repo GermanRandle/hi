@@ -4,7 +4,6 @@ module HW5.Parser
 
 import Control.Applicative (optional, many)
 import Control.Applicative.Combinators (between, sepBy)
-import Control.Monad (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Data.Void (Void)
 import HW5.Base (HiExpr (..), HiValue (..), HiFun(..), funName)
@@ -21,17 +20,13 @@ parse = runParser (between space eof expr) ""
 expr :: Parser HiExpr
 expr = makeExprParser exprTerm operatorTable
 
+inBrackets :: Parser p -> Parser p
+inBrackets inner = takeToken "(" *> inner <* takeToken ")"
+
 exprTerm :: Parser HiExpr
 exprTerm = do
-  w <- optional wrapped
+  w <- optional $ inBrackets expr
   maybe exprTerm' return w
-
-wrapped :: Parser HiExpr
-wrapped = do
-  void $ takeToken "("
-  e <- expr
-  void $ takeToken ")"
-  return e
 
 exprTerm' :: Parser HiExpr
 exprTerm' = do
@@ -57,11 +52,7 @@ functionName = support HiFunDiv
   support f = lexeme $ HiExprValue . HiValueFunction . const f <$> takeToken (funName f)
 
 functionArgs :: Parser [HiExpr]
-functionArgs = do
-  void $ takeToken "("
-  args <- expr `sepBy` takeToken ","
-  void $ takeToken ")"
-  return args
+functionArgs = inBrackets $ expr `sepBy` takeToken ","
 
 -- TODO IN T3
 operatorTable :: [[Operator Parser HiExpr]]
