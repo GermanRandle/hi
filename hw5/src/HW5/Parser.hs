@@ -2,7 +2,7 @@ module HW5.Parser
   ( parse
   ) where
 
-import Control.Applicative (optional)
+import Control.Applicative (optional, many)
 import Control.Applicative.Combinators (between, sepBy)
 import Control.Monad (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
@@ -36,10 +36,8 @@ wrapped = do
 exprTerm' :: Parser HiExpr
 exprTerm' = do
   object <- functionName <|> numeric
-  args <- optional functionArgs
-  return $ case args of
-    Just args' -> HiExprApply object args'
-    Nothing -> object
+  args <- many functionArgs
+  return $ foldl HiExprApply object args
 
 lexeme :: Parser p -> Parser p
 lexeme = L.lexeme space
