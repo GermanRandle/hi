@@ -2,6 +2,7 @@ module HW5.Pretty
   ( prettyValue
   ) where
 
+import Data.Char (toLower)
 import Data.Ratio ((%), denominator, numerator)
 import Data.Scientific (fromRationalRepetendUnlimited, toRealFloat)
 import HW5.Base (HiValue (..), funName)
@@ -11,6 +12,7 @@ import Prettyprinter.Render.Terminal (AnsiStyle)
 prettyValue :: HiValue -> Doc AnsiStyle
 prettyValue (HiValueNumber x) = prettyValueNumber (numerator x) (denominator x)
 prettyValue (HiValueFunction f) = pretty $ funName f
+prettyValue (HiValueBool b) = pretty $ map toLower (show b)
 
 prettyValueNumber :: Integer -> Integer -> Doc AnsiStyle
 prettyValueNumber n d

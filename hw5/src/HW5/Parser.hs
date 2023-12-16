@@ -5,6 +5,7 @@ module HW5.Parser
 import Control.Applicative (optional, many)
 import Control.Applicative.Combinators (between, sepBy)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
+import Data.Char (toLower)
 import Data.Void (Void)
 import HW5.Base (HiExpr (..), HiValue (..), HiFun(..), funName)
 import Text.Megaparsec (MonadParsec (eof), Parsec, (<|>), runParser)
@@ -30,7 +31,7 @@ exprTerm = do
 
 exprTerm' :: Parser HiExpr
 exprTerm' = do
-  object <- functionName <|> numeric
+  object <- functionName <|> numeric <|> boolean
   args <- many functionArgs
   return $ foldl HiExprApply object args
 
@@ -42,6 +43,11 @@ takeToken = L.symbol space
 
 numeric :: Parser HiExpr
 numeric = lexeme $ HiExprValue . HiValueNumber . toRational <$> L.signed space L.scientific
+
+boolean :: Parser HiExpr
+boolean = lexeme $ support False <|> support True where
+  support :: Bool -> Parser HiExpr
+  support b = HiExprValue . HiValueBool . const b <$> takeToken (map toLower (show b))
 
 functionName :: Parser HiExpr
 functionName = lexeme $ support HiFunDiv

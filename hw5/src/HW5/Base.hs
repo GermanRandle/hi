@@ -11,11 +11,22 @@ data HiFun =
   | HiFunMul
   | HiFunAdd
   | HiFunSub
+  | HiFunNot
+  | HiFunAnd
+  | HiFunOr
+  | HiFunLessThan
+  | HiFunGreaterThan
+  | HiFunEquals
+  | HiFunNotLessThan
+  | HiFunNotGreaterThan
+  | HiFunNotEquals
+  | HiFunIf
   deriving Show
 
 data HiValue =
     HiValueNumber Rational
   | HiValueFunction HiFun
+  | HiValueBool Bool
   deriving Show
 
 data HiExpr =
@@ -35,3 +46,13 @@ funName HiFunDiv = "div"
 funName HiFunMul = "mul"
 funName HiFunAdd = "add"
 funName HiFunSub = "sub"
+funName HiFunNot = "not"
+funName HiFunAnd = "and"
+funName HiFunOr = "or"
+funName HiFunLessThan = "less-than"
+funName HiFunGreaterThan = "greater-than"
+funName HiFunEquals = "equals"
+funName HiFunNotLessThan = "not-less-than"
+funName HiFunNotGreaterThan = "not-greater-than"
+funName HiFunNotEquals = "not-equals"
+funName HiFunIf = "if"
