@@ -6,13 +6,15 @@ import Data.Char (toLower)
 import Data.Ratio ((%), denominator, numerator)
 import Data.Scientific (fromRationalRepetendUnlimited, toRealFloat)
 import HW5.Base (HiValue (..), funName)
-import Prettyprinter (Doc, (<+>), pretty, slash)
+import Prettyprinter (Doc, (<+>), pretty, slash, viaShow)
 import Prettyprinter.Render.Terminal (AnsiStyle)
 
 prettyValue :: HiValue -> Doc AnsiStyle
 prettyValue (HiValueNumber x) = prettyValueNumber (numerator x) (denominator x)
 prettyValue (HiValueFunction f) = pretty $ funName f
 prettyValue (HiValueBool b) = pretty $ map toLower (show b)
+prettyValue HiValueNull = pretty "null"
+prettyValue (HiValueString s) = viaShow s
 
 prettyValueNumber :: Integer -> Integer -> Doc AnsiStyle
 prettyValueNumber n d

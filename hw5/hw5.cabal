@@ -38,6 +38,7 @@ library
     , prettyprinter
     , prettyprinter-ansi-terminal
     , scientific
+    , text
     , transformers
   default-language: Haskell2010
 

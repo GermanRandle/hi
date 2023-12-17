@@ -6,10 +6,11 @@ import Control.Applicative (optional, many)
 import Control.Applicative.Combinators (between, sepBy)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Data.Char (toLower)
+import qualified Data.Text as T
 import Data.Void (Void)
 import HW5.Base (HiExpr (..), HiValue (..), HiFun(..), funName)
-import Text.Megaparsec (MonadParsec (eof), Parsec, (<|>), notFollowedBy, runParser, try)
-import Text.Megaparsec.Char (space)
+import Text.Megaparsec (MonadParsec (eof), Parsec, (<|>), manyTill, notFollowedBy, runParser, try)
+import Text.Megaparsec.Char (char, space)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec.Error (ParseErrorBundle)
 
@@ -31,7 +32,7 @@ exprTerm = do
 
 exprTerm' :: Parser HiExpr
 exprTerm' = do
-  object <- functionName <|> numeric <|> boolean
+  object <- functionName <|> numeric <|> boolean <|> nullKeyword <|> stringLiteral
   args <- many functionArgs
   return $ foldl HiExprApply object args
 
@@ -52,40 +53,53 @@ boolean = lexeme $ support False <|> support True where
   support :: Bool -> Parser HiExpr
   support b = HiExprValue . HiValueBool . const b <$> takeToken (map toLower (show b))
 
+nullKeyword :: Parser HiExpr
+nullKeyword = lexeme $ HiExprValue HiValueNull <$ takeToken "null"
+
+stringLiteral :: Parser HiExpr
+stringLiteral = lexeme $ HiExprValue . HiValueString . T.pack <$> (char '"' >> manyTill L.charLiteral (char '"'))
+
 functionName :: Parser HiExpr
-functionName = lexeme $ support HiFunDiv
-                    <|> support HiFunMul
-                    <|> support HiFunAdd
-                    <|> support HiFunSub
-                    <|> support HiFunNotLessThan
-                    <|> support HiFunNotGreaterThan
-                    <|> support HiFunNotEquals
-                    <|> support HiFunNot
-                    <|> support HiFunAnd
-                    <|> support HiFunOr
-                    <|> support HiFunLessThan
-                    <|> support HiFunGreaterThan
-                    <|> support HiFunEquals
-                    <|> support HiFunIf where
-  support :: HiFun -> Parser HiExpr
-  support f = HiExprValue . HiValueFunction . const f <$> takeToken (funName f)
+functionName = lexeme $ 
+      support HiFunDiv
+  <|> support HiFunMul
+  <|> support HiFunAdd
+  <|> support HiFunSub
+  <|> support HiFunNotLessThan
+  <|> support HiFunNotGreaterThan
+  <|> support HiFunNotEquals
+  <|> support HiFunNot
+  <|> support HiFunAnd
+  <|> support HiFunOr
+  <|> support HiFunLessThan
+  <|> support HiFunGreaterThan
+  <|> support HiFunEquals
+  <|> support HiFunIf
+  <|> support HiFunLength
+  <|> support HiFunToUpper
+  <|> support HiFunToLower
+  <|> support HiFunReverse
+  <|> support HiFunTrim where
+    support :: HiFun -> Parser HiExpr
+    support f = HiExprValue . HiValueFunction . const f <$> takeToken (funName f)
 
 functionArgs :: Parser [HiExpr]
 functionArgs = inParentheses $ expr `sepBy` takeToken ","
 
 operatorTable :: [[Operator Parser HiExpr]]
-operatorTable = [ [  InfixL $ supportFun HiFunDiv <$ takeTokenNotFollowedBy "/" "="
-                  , supportSign "*" HiFunMul InfixL ]
-                , [ supportSign "+" HiFunAdd InfixL
-                  , supportSign "-" HiFunSub InfixL ]
-                , [ supportSign "<=" HiFunNotGreaterThan InfixN
-                  , supportSign ">=" HiFunNotLessThan InfixN
-                  , supportSign "<" HiFunLessThan InfixN
-                  , supportSign ">" HiFunGreaterThan InfixN
-                  , supportSign "==" HiFunEquals InfixN
-                  , supportSign "/=" HiFunNotEquals InfixN ]
-                , [ supportSign "&&" HiFunAnd InfixR ]
-                , [ supportSign "||" HiFunOr InfixR ] ] where
+operatorTable = 
+  [ [  InfixL $ supportFun HiFunDiv <$ takeTokenNotFollowedBy "/" "="
+    , supportSign "*" HiFunMul InfixL ]
+  , [ supportSign "+" HiFunAdd InfixL
+    , supportSign "-" HiFunSub InfixL ]
+  , [ supportSign "<=" HiFunNotGreaterThan InfixN
+    , supportSign ">=" HiFunNotLessThan InfixN
+    , supportSign "<" HiFunLessThan InfixN
+    , supportSign ">" HiFunGreaterThan InfixN
+    , supportSign "==" HiFunEquals InfixN
+    , supportSign "/=" HiFunNotEquals InfixN ]
+  , [ supportSign "&&" HiFunAnd InfixR ]
+  , [ supportSign "||" HiFunOr InfixR ] ] where
   supportSign :: String -> HiFun -> (Parser (HiExpr -> HiExpr -> HiExpr) -> Operator Parser HiExpr) -> Operator Parser HiExpr
   supportSign token fConstr assoc = assoc $ supportFun fConstr <$ takeToken token
 

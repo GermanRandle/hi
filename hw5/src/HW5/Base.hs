@@ -6,6 +6,8 @@ module HW5.Base
   , funName
   ) where
 
+import qualified Data.Text as T
+
 data HiFun =
     HiFunDiv
   | HiFunMul
@@ -21,11 +23,18 @@ data HiFun =
   | HiFunNotGreaterThan
   | HiFunNotEquals
   | HiFunIf
+  | HiFunLength
+  | HiFunToUpper
+  | HiFunToLower
+  | HiFunReverse
+  | HiFunTrim
   deriving (Show, Eq, Ord)
 
 data HiValue =
-    HiValueBool Bool
+    HiValueNull
+  | HiValueBool Bool
   | HiValueNumber Rational
+  | HiValueString T.Text
   | HiValueFunction HiFun
   deriving (Show, Eq, Ord)
 
@@ -56,3 +65,8 @@ funName HiFunNotLessThan = "not-less-than"
 funName HiFunNotGreaterThan = "not-greater-than"
 funName HiFunNotEquals = "not-equals"
 funName HiFunIf = "if"
+funName HiFunLength = "length"
+funName HiFunToUpper = "to-upper"
+funName HiFunToLower = "to-lower"
+funName HiFunReverse = "reverse"
+funName HiFunTrim = "trim"
