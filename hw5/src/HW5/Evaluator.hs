@@ -85,10 +85,25 @@ evalFuncTernary _ _ _ _ = throwError HiErrorArityMismatch
 stringIndex :: Monad m => T.Text -> [HiValue] -> Evaluator m HiValue
 stringIndex s [el] = do
   idx <- fromIntegral <$> takeInteger el
-  if idx < 0 || idx >= T.length s
-  then return HiValueNull
-  else return $ HiValueString $ T.singleton $ s `T.index` idx
+  return $ if idx >= 0 && T.compareLength s idx == LT
+           then HiValueString $ T.singleton $ s `T.index` idx
+           else HiValueNull
+stringIndex s [el1, el2] = do
+  res <- slice (T.unpack s) el1 el2
+  return $ HiValueString $ T.pack res
 stringIndex _ _ = throwError HiErrorArityMismatch
+
+slice :: Monad m => [a] -> HiValue -> HiValue -> Evaluator m [a]
+slice lst HiValueNull r@(HiValueNumber _) = slice lst (HiValueNumber 0) r
+slice lst l@(HiValueNumber _) HiValueNull = slice lst l (HiValueNumber (toRational $ length lst))
+slice lst l@(HiValueNumber _) r@(HiValueNumber _) = do
+  l' <- normalize . fromIntegral <$> takeInteger l
+  r' <- normalize . fromIntegral <$> takeInteger r
+  return $ take (r' - l') (drop l' lst)
+  where
+    normalize :: Int -> Int
+    normalize idx = if idx < 0 then idx + length lst else idx
+slice _ _ _ = throwError HiErrorInvalidArgument
 
 -- ArgTakers
 
