@@ -41,7 +41,7 @@ data HiError =
   | HiErrorDivideByZero
   deriving Show
 
-funName :: HiFun -> String -- TODO: make a model with all function attributes?
+funName :: HiFun -> String
 funName HiFunDiv = "div"
 funName HiFunMul = "mul"
 funName HiFunAdd = "add"

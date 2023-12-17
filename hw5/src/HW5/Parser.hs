@@ -73,7 +73,6 @@ functionName = lexeme $ support HiFunDiv
 functionArgs :: Parser [HiExpr]
 functionArgs = inParentheses $ expr `sepBy` takeToken ","
 
--- TODO IN T3
 operatorTable :: [[Operator Parser HiExpr]]
 operatorTable = [ [  InfixL $ supportFun HiFunDiv <$ takeTokenNotFollowedBy "/" "="
                   , supportSign "*" HiFunMul InfixL ]
