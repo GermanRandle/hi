@@ -54,15 +54,15 @@ functionName = lexeme $ support HiFunDiv
                     <|> support HiFunMul
                     <|> support HiFunAdd
                     <|> support HiFunSub
+                    <|> support HiFunNotLessThan
+                    <|> support HiFunNotGreaterThan
+                    <|> support HiFunNotEquals
                     <|> support HiFunNot
                     <|> support HiFunAnd
                     <|> support HiFunOr
                     <|> support HiFunLessThan
                     <|> support HiFunGreaterThan
                     <|> support HiFunEquals
-                    <|> support HiFunNotLessThan
-                    <|> support HiFunNotGreaterThan
-                    <|> support HiFunNotEquals
                     <|> support HiFunIf where
   support :: HiFun -> Parser HiExpr
   support f = HiExprValue . HiValueFunction . const f <$> takeToken (funName f)
