@@ -6,7 +6,6 @@ import Control.Applicative (optional, many)
 import Control.Applicative.Combinators (between, sepBy)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Data.Char (toLower)
-import qualified Data.Sequence as S
 import qualified Data.Text as T
 import Data.Void (Void)
 import HW5.Base (HiExpr (..), HiValue (..), HiFun(..), funName)
@@ -33,7 +32,7 @@ exprTerm = do
 
 exprTerm' :: Parser HiExpr
 exprTerm' = do
-  object <- HiExprValue <$> value
+  object <- (HiExprValue <$> value) <|> listLiterals
   args <- many functionArgs
   return $ foldl HiExprApply object args
 
@@ -60,11 +59,11 @@ nullKeyword = lexeme $ HiValueNull <$ takeToken "null" -- excessive lexemes?
 stringLiteral :: Parser HiValue
 stringLiteral = lexeme $ HiValueString . T.pack <$> (char '"' >> manyTill L.charLiteral (char '"'))
 
-listLiterals :: Parser HiValue
-listLiterals = HiValueList . S.fromList <$> (takeToken "[" *> (value `sepBy` takeToken ",") <* takeToken "]")
+listLiterals :: Parser HiExpr
+listLiterals = HiExprApply (HiExprValue $ HiValueFunction HiFunList) <$> (takeToken "[" *> (expr `sepBy` takeToken ",") <* takeToken "]")
 
 value :: Parser HiValue
-value = functionName <|> numeric <|> boolean <|> nullKeyword <|> stringLiteral <|> listLiterals
+value = functionName <|> numeric <|> boolean <|> nullKeyword <|> stringLiteral
 
 functionName :: Parser HiValue
 functionName = lexeme $ 
