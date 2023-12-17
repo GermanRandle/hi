@@ -8,7 +8,7 @@ import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Data.Char (toLower)
 import Data.Void (Void)
 import HW5.Base (HiExpr (..), HiValue (..), HiFun(..), funName)
-import Text.Megaparsec (MonadParsec (eof), Parsec, (<|>), runParser)
+import Text.Megaparsec (MonadParsec (eof), Parsec, (<|>), notFollowedBy, runParser, try)
 import Text.Megaparsec.Char (space)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec.Error (ParseErrorBundle)
@@ -41,6 +41,9 @@ lexeme = L.lexeme space
 takeToken :: String -> Parser String
 takeToken = L.symbol space
 
+takeTokenNotFollowedBy :: String -> String -> Parser String
+takeTokenNotFollowedBy token follow = try $ takeToken token <* (notFollowedBy . takeToken) follow
+
 numeric :: Parser HiExpr
 numeric = lexeme $ HiExprValue . HiValueNumber . toRational <$> L.signed space L.scientific
 
@@ -72,4 +75,20 @@ functionArgs = inParentheses $ expr `sepBy` takeToken ","
 
 -- TODO IN T3
 operatorTable :: [[Operator Parser HiExpr]]
-operatorTable = []
+operatorTable = [ [  InfixL $ supportExpr HiFunDiv <$ takeTokenNotFollowedBy "/" "="
+                  , supportBinary "*" HiFunMul ]
+                , [ supportBinary "+" HiFunAdd
+                  , supportBinary "-" HiFunSub ]
+                , [ supportBinary "<=" HiFunNotGreaterThan
+                  , supportBinary ">=" HiFunNotLessThan
+                  , supportBinary "<" HiFunLessThan
+                  , supportBinary ">" HiFunGreaterThan
+                  , supportBinary "==" HiFunEquals
+                  , supportBinary "/=" HiFunNotEquals ]
+                , [ supportBinary "&&" HiFunAnd ]
+                , [ supportBinary "||" HiFunOr ] ] where
+  supportBinary :: String -> HiFun -> Operator Parser HiExpr
+  supportBinary token constr = InfixL $ supportExpr constr <$ takeToken token
+
+  supportExpr :: HiFun -> (HiExpr -> HiExpr -> HiExpr)
+  supportExpr f a b = HiExprApply (HiExprValue $ HiValueFunction f) [a, b]
