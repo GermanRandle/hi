@@ -85,7 +85,7 @@ evalFuncTernary _ _ _ _ = throwError HiErrorArityMismatch
 stringIndex :: Monad m => T.Text -> [HiValue] -> Evaluator m HiValue
 stringIndex s [el] = do
   idx <- fromIntegral <$> takeInteger el
-  return $ if idx >= 0 && T.compareLength s idx == LT
+  return $ if idx >= 0 && T.compareLength s idx == GT
            then HiValueString $ T.singleton $ s `T.index` idx
            else HiValueNull
 stringIndex s [el1, el2] = do
