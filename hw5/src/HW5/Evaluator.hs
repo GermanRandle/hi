@@ -6,6 +6,7 @@ import Control.Monad.Except (ExceptT, throwError)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Ratio (denominator, numerator)
 import Data.Semigroup (stimes)
+import qualified Data.Sequence as S
 import qualified Data.Text as T
 import HW5.Base (HiError (..), HiExpr (..), HiFun(..), HiValue (..))
 
@@ -31,6 +32,7 @@ evalApply object args = do
     _ -> throwError HiErrorInvalidFunction
 
 evalFunc :: Monad m => HiFun -> [HiValue] -> Evaluator m HiValue
+evalFunc HiFunList l = return $ HiValueList $ S.fromList l
 evalFunc f [a] = evalFuncUnary f a
 evalFunc f [a, b] = evalFuncBinary f a b
 evalFunc f [a, b, c] = evalFuncTernary f a b c
@@ -126,12 +128,8 @@ takeText _ = throwError HiErrorInvalidArgument
 takeInteger, takeNatural :: Monad m => ArgTaker m Integer
 takeInteger val = do
   x <- takeNum val
-  if denominator x == 1
-    then return $ numerator x
-    else throwError HiErrorInvalidArgument
+  if denominator x == 1 then return $ numerator x else throwError HiErrorInvalidArgument
 
 takeNatural val = do
   x <- takeInteger val
-  if x >= 0 
-    then return x
-    else throwError HiErrorInvalidArgument
+  if x >= 0 then return x else throwError HiErrorInvalidArgument

@@ -34,6 +34,7 @@ ghc-options:
 library:
   source-dirs: src
   dependencies:
+    - containers
     - megaparsec
     - mtl
     - parser-combinators

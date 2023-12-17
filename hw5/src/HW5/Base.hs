@@ -6,6 +6,7 @@ module HW5.Base
   , funName
   ) where
 
+import qualified Data.Sequence as S
 import qualified Data.Text as T
 
 data HiFun =
@@ -28,6 +29,9 @@ data HiFun =
   | HiFunToLower
   | HiFunReverse
   | HiFunTrim
+  | HiFunList
+  | HiFunRange
+  | HiFunFold
   deriving (Show, Eq, Ord)
 
 data HiValue =
@@ -36,6 +40,7 @@ data HiValue =
   | HiValueNumber Rational
   | HiValueString T.Text
   | HiValueFunction HiFun
+  | HiValueList (S.Seq HiValue)
   deriving (Show, Eq, Ord)
 
 data HiExpr =
@@ -70,3 +75,6 @@ funName HiFunToUpper = "to-upper"
 funName HiFunToLower = "to-lower"
 funName HiFunReverse = "reverse"
 funName HiFunTrim = "trim"
+funName HiFunList = "list"
+funName HiFunRange = "range"
+funName HiFunFold = "fold"
