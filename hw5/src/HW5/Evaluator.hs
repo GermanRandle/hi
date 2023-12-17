@@ -117,7 +117,7 @@ listIndex :: Monad m => S.Seq HiValue -> [HiValue] -> Evaluator m HiValue
 listIndex l [el] = do
   idx <- fromIntegral <$> takeInteger el
   return $ case l S.!? idx of
-    Just x -> HiValueList $ S.singleton x
+    Just x -> x
     Nothing -> HiValueNull
 listIndex l [el1, el2] = do
   res <- slice (toList l) el1 el2
