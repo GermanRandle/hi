@@ -24,9 +24,9 @@ data HiFun =
   deriving (Show, Eq, Ord)
 
 data HiValue =
-    HiValueNumber Rational
+    HiValueBool Bool
+  | HiValueNumber Rational
   | HiValueFunction HiFun
-  | HiValueBool Bool
   deriving (Show, Eq, Ord)
 
 data HiExpr =
