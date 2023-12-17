@@ -57,9 +57,9 @@ evalFuncUnary HiFunTrim = evalFuncUnary' takeText T.strip HiValueString
 evalFuncUnary f = evalFuncUnaryPolymorphic f
 
 evalFuncUnaryPolymorphic HiFunLength s@(HiValueString _) = evalFuncUnary' takeText (toRational . T.length) HiValueNumber s
-evalFuncUnaryPolymorphic HiFunLength l@(HiValueList _) = evalFuncUnary' takeList (toRational . S.length) HiValueNumber l
+evalFuncUnaryPolymorphic HiFunLength l = evalFuncUnary' takeList (toRational . S.length) HiValueNumber l
 evalFuncUnaryPolymorphic HiFunReverse s@(HiValueString _) = evalFuncUnary' takeText T.reverse HiValueString s
-evalFuncUnaryPolymorphic HiFunReverse l@(HiValueList _) = evalFuncUnary' takeList S.reverse HiValueList l
+evalFuncUnaryPolymorphic HiFunReverse l = evalFuncUnary' takeList S.reverse HiValueList l
 evalFuncUnaryPolymorphic _ _ = throwError HiErrorArityMismatch
 
 evalFuncUnary' :: Monad m => ArgTaker m a -> UnaryFunction a b -> (b -> HiValue) -> HiValue -> Evaluator m HiValue
@@ -82,12 +82,12 @@ evalFuncBinary f = evalFuncBinaryPolymorphic f
 
 evalFuncBinaryPolymorphic HiFunAdd a@(HiValueNumber _) = evalFuncBinary' takeNum takeNum (+) HiValueNumber a
 evalFuncBinaryPolymorphic HiFunAdd a@(HiValueString _) = evalFuncBinary' takeText takeText (<>) HiValueString a
-evalFuncBinaryPolymorphic HiFunAdd a@(HiValueList _) = evalFuncBinary' takeList takeList (S.><) HiValueList a
+evalFuncBinaryPolymorphic HiFunAdd a = evalFuncBinary' takeList takeList (S.><) HiValueList a
 evalFuncBinaryPolymorphic HiFunDiv a@(HiValueNumber _) = evalFuncBinary' takeNum takeDivisor (/) HiValueNumber a
-evalFuncBinaryPolymorphic HiFunDiv a@(HiValueString _) = evalFuncBinary' takeText takeText (\ x y -> T.snoc x '/' <> y) HiValueString a
+evalFuncBinaryPolymorphic HiFunDiv a = evalFuncBinary' takeText takeText (\ x y -> T.snoc x '/' <> y) HiValueString a
 evalFuncBinaryPolymorphic HiFunMul a@(HiValueNumber _) = evalFuncBinary' takeNum takeNum (*) HiValueNumber a
 evalFuncBinaryPolymorphic HiFunMul a@(HiValueString _) = evalFuncBinary' takeText takeNatural (flip stimes) HiValueString a
-evalFuncBinaryPolymorphic HiFunMul a@(HiValueList _) = evalFuncBinary' takeList takeNatural (flip stimes) HiValueList a
+evalFuncBinaryPolymorphic HiFunMul a = evalFuncBinary' takeList takeNatural (flip stimes) HiValueList a
 evalFuncBinaryPolymorphic _ _ = do const (throwError HiErrorArityMismatch)
 
 evalFuncBinary' :: Monad m => ArgTaker m a -> ArgTaker m b -> BinaryFunction a b c -> (c -> HiValue) -> HiValue -> HiValue -> Evaluator m HiValue
