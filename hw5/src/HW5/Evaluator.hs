@@ -2,8 +2,9 @@ module HW5.Evaluator
   ( eval
   ) where
 
-import Control.Monad.Except (ExceptT, throwError)
+import Control.Monad.Except (ExceptT, foldM, throwError)
 import Control.Monad.Trans.Except (runExceptT)
+import Data.Foldable (toList)
 import Data.Ratio (denominator, numerator)
 import Data.Semigroup (stimes)
 import qualified Data.Sequence as S
@@ -29,23 +30,37 @@ evalApply object args = do
   case eObject of
     (HiValueFunction f) -> evalFunc f eArgs
     (HiValueString s) -> stringIndex s eArgs
+    (HiValueList l) -> listIndex l eArgs
     _ -> throwError HiErrorInvalidFunction
 
 evalFunc :: Monad m => HiFun -> [HiValue] -> Evaluator m HiValue
 evalFunc HiFunList l = return $ HiValueList $ S.fromList l
+evalFunc HiFunFold args = do
+  case args of
+    [f, l] -> do
+      ef <- takeFun f
+      el <- takeList l
+      case el of
+        S.Empty -> return $ HiValueList S.Empty
+        (h S.:<| t) -> foldM (evalFuncBinary ef) h t
+    _ -> throwError HiErrorArityMismatch
 evalFunc f [a] = evalFuncUnary f a
 evalFunc f [a, b] = evalFuncBinary f a b
 evalFunc f [a, b, c] = evalFuncTernary f a b c
 evalFunc _ _ = throwError HiErrorArityMismatch
 
-evalFuncUnary :: Monad m => HiFun -> HiValue -> Evaluator m HiValue
+evalFuncUnary, evalFuncUnaryPolymorphic :: Monad m => HiFun -> HiValue -> Evaluator m HiValue
 evalFuncUnary HiFunNot = evalFuncUnary' takeBool not HiValueBool
-evalFuncUnary HiFunLength = evalFuncUnary' takeText (toRational . T.length) HiValueNumber
 evalFuncUnary HiFunToUpper = evalFuncUnary' takeText T.toUpper HiValueString
 evalFuncUnary HiFunToLower = evalFuncUnary' takeText T.toLower HiValueString
-evalFuncUnary HiFunReverse = evalFuncUnary' takeText T.reverse HiValueString
 evalFuncUnary HiFunTrim = evalFuncUnary' takeText T.strip HiValueString
-evalFuncUnary _ = do const (throwError HiErrorArityMismatch)
+evalFuncUnary f = evalFuncUnaryPolymorphic f
+
+evalFuncUnaryPolymorphic HiFunLength s@(HiValueString _) = evalFuncUnary' takeText (toRational . T.length) HiValueNumber s
+evalFuncUnaryPolymorphic HiFunLength l@(HiValueList _) = evalFuncUnary' takeList (toRational . S.length) HiValueNumber l
+evalFuncUnaryPolymorphic HiFunReverse s@(HiValueString _) = evalFuncUnary' takeText T.reverse HiValueString s
+evalFuncUnaryPolymorphic HiFunReverse l@(HiValueList _) = evalFuncUnary' takeList S.reverse HiValueList l
+evalFuncUnaryPolymorphic _ _ = throwError HiErrorArityMismatch
 
 evalFuncUnary' :: Monad m => ArgTaker m a -> UnaryFunction a b -> (b -> HiValue) -> HiValue -> Evaluator m HiValue
 evalFuncUnary' argTaker f resWrapper a = do
@@ -62,14 +77,17 @@ evalFuncBinary HiFunEquals = evalFuncBinary' return return (==) HiValueBool
 evalFuncBinary HiFunNotLessThan = evalFuncBinary' return return (>=) HiValueBool
 evalFuncBinary HiFunNotGreaterThan = evalFuncBinary' return return (<=) HiValueBool
 evalFuncBinary HiFunNotEquals = evalFuncBinary' return return (/=) HiValueBool
+evalFuncBinary HiFunRange = evalFuncBinary' takeNum takeNum (\a b -> [a .. b]) (HiValueList . S.fromList . map HiValueNumber)
 evalFuncBinary f = evalFuncBinaryPolymorphic f
 
 evalFuncBinaryPolymorphic HiFunAdd a@(HiValueNumber _) = evalFuncBinary' takeNum takeNum (+) HiValueNumber a
 evalFuncBinaryPolymorphic HiFunAdd a@(HiValueString _) = evalFuncBinary' takeText takeText (<>) HiValueString a
+evalFuncBinaryPolymorphic HiFunAdd a@(HiValueList _) = evalFuncBinary' takeList takeList (S.><) HiValueList a
 evalFuncBinaryPolymorphic HiFunDiv a@(HiValueNumber _) = evalFuncBinary' takeNum takeDivisor (/) HiValueNumber a
 evalFuncBinaryPolymorphic HiFunDiv a@(HiValueString _) = evalFuncBinary' takeText takeText (\ x y -> T.snoc x '/' <> y) HiValueString a
 evalFuncBinaryPolymorphic HiFunMul a@(HiValueNumber _) = evalFuncBinary' takeNum takeNum (*) HiValueNumber a
 evalFuncBinaryPolymorphic HiFunMul a@(HiValueString _) = evalFuncBinary' takeText takeNatural (flip stimes) HiValueString a
+evalFuncBinaryPolymorphic HiFunMul a@(HiValueList _) = evalFuncBinary' takeList takeNatural (flip stimes) HiValueList a
 evalFuncBinaryPolymorphic _ _ = do const (throwError HiErrorArityMismatch)
 
 evalFuncBinary' :: Monad m => ArgTaker m a -> ArgTaker m b -> BinaryFunction a b c -> (c -> HiValue) -> HiValue -> HiValue -> Evaluator m HiValue
@@ -94,6 +112,17 @@ stringIndex s [el1, el2] = do
   res <- slice (T.unpack s) el1 el2
   return $ HiValueString $ T.pack res
 stringIndex _ _ = throwError HiErrorArityMismatch
+
+listIndex :: Monad m => S.Seq HiValue -> [HiValue] -> Evaluator m HiValue
+listIndex l [el] = do
+  idx <- fromIntegral <$> takeInteger el
+  return $ case l S.!? idx of
+    Just x -> HiValueList $ S.singleton x
+    Nothing -> HiValueNull
+listIndex l [el1, el2] = do
+  res <- slice (toList l) el1 el2
+  return $ HiValueList $ S.fromList res
+listIndex _ _ = throwError HiErrorArityMismatch
 
 slice :: Monad m => [a] -> HiValue -> HiValue -> Evaluator m [a]
 slice lst HiValueNull r@(HiValueNumber _) = slice lst (HiValueNumber 0) r
@@ -133,3 +162,11 @@ takeInteger val = do
 takeNatural val = do
   x <- takeInteger val
   if x >= 0 then return x else throwError HiErrorInvalidArgument
+
+takeFun :: Monad m => ArgTaker m HiFun
+takeFun (HiValueFunction f) = return f
+takeFun _ = throwError HiErrorInvalidArgument
+
+takeList :: Monad m => ArgTaker m (S.Seq HiValue)
+takeList (HiValueList l) = return l
+takeList _ = throwError HiErrorInvalidArgument
