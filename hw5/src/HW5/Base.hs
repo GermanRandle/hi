@@ -21,13 +21,13 @@ data HiFun =
   | HiFunNotGreaterThan
   | HiFunNotEquals
   | HiFunIf
-  deriving Show
+  deriving (Show, Eq, Ord)
 
 data HiValue =
     HiValueNumber Rational
   | HiValueFunction HiFun
   | HiValueBool Bool
-  deriving Show
+  deriving (Show, Eq, Ord)
 
 data HiExpr =
     HiExprValue HiValue

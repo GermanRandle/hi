@@ -6,6 +6,8 @@ import Control.Monad.Except (ExceptT, throwError)
 import Control.Monad.Trans.Except (runExceptT)
 import HW5.Base (HiError (..), HiExpr (..), HiFun(..), HiValue (..))
 
+type ArgTaker m a = HiValue -> Evaluator m a
+type BinaryFunction a b c = a -> b -> c
 type Evaluator = ExceptT HiError
 
 eval :: Monad m => HiExpr -> m (Either HiError HiValue)
@@ -24,22 +26,60 @@ evalApply object args = do
     _ -> throwError HiErrorInvalidFunction
 
 evalFunc :: Monad m => HiFun -> [HiValue] -> Evaluator m HiValue
-evalFunc f [arg1, arg2] = evalFuncBinary f arg1 arg2
+evalFunc f [a] = evalFuncUnary f a
+evalFunc f [a, b] = evalFuncBinary f a b
+evalFunc f [a, b, c] = evalFuncTernary f a b c
 evalFunc _ _ = throwError HiErrorArityMismatch
 
+evalFuncUnary :: Monad m => HiFun -> HiValue -> Evaluator m HiValue
+evalFuncUnary HiFunNot a = do
+  ea <- takeBool a
+  return $ HiValueBool $ not ea
+evalFuncUnary _ _ = throwError HiErrorArityMismatch
+
 evalFuncBinary :: Monad m => HiFun -> HiValue -> HiValue -> Evaluator m HiValue
-evalFuncBinary f a b = do
-  ea <- evalNumericArg a
-  eb <- evalNumericArg b
-  evalApplyBinary f ea eb
+evalFuncBinary HiFunDiv = evalFuncBinarySimple takeNum takeDivisor (/) HiValueNumber
+evalFuncBinary HiFunMul = evalFuncBinarySimple takeNum takeNum (*) HiValueNumber
+evalFuncBinary HiFunAdd = evalFuncBinarySimple takeNum takeNum (+) HiValueNumber
+evalFuncBinary HiFunSub = evalFuncBinarySimple takeNum takeNum (-) HiValueNumber
+evalFuncBinary HiFunAnd = evalFuncBinarySimple takeBool takeBool (&&) HiValueBool
+evalFuncBinary HiFunOr = evalFuncBinarySimple takeBool takeBool (||) HiValueBool
+evalFuncBinary HiFunLessThan = evalFuncBinarySimple takeSelf takeSelf  (<) HiValueBool
+evalFuncBinary HiFunGreaterThan = evalFuncBinarySimple takeSelf takeSelf (>) HiValueBool
+evalFuncBinary HiFunEquals = evalFuncBinarySimple takeSelf takeSelf (==) HiValueBool
+evalFuncBinary HiFunNotLessThan = evalFuncBinarySimple takeSelf takeSelf (>=) HiValueBool
+evalFuncBinary HiFunNotGreaterThan = evalFuncBinarySimple takeSelf takeSelf (<=) HiValueBool
+evalFuncBinary HiFunNotEquals = evalFuncBinarySimple takeSelf takeSelf (/=) HiValueBool
+evalFuncBinary _ = mismatch where
+  mismatch :: Monad m => HiValue -> HiValue -> Evaluator m HiValue
+  mismatch _ _ = throwError HiErrorArityMismatch
 
-evalNumericArg :: Monad m => HiValue -> Evaluator m Rational
-evalNumericArg (HiValueNumber x) = return x
-evalNumericArg _ = throwError HiErrorInvalidArgument
+evalFuncBinarySimple :: Monad m => ArgTaker m a -> ArgTaker m b -> BinaryFunction a b c -> (c -> HiValue) -> HiValue -> HiValue -> Evaluator m HiValue
+evalFuncBinarySimple argChecker1 argChecker2 f resWrapper a b = do
+  ea <- argChecker1 a
+  eb <- argChecker2 b
+  return $ resWrapper $ f ea eb
 
-evalApplyBinary :: Monad m => HiFun -> Rational -> Rational -> Evaluator m HiValue
-evalApplyBinary HiFunDiv a b = if b == 0 then throwError HiErrorDivideByZero else return $ HiValueNumber $ a / b
-evalApplyBinary HiFunMul a b = return $ HiValueNumber $ a * b
-evalApplyBinary HiFunAdd a b = return $ HiValueNumber $ a + b
-evalApplyBinary HiFunSub a b = return $ HiValueNumber $ a - b
-evalApplyBinary _ _ _ = undefined
+evalFuncTernary :: Monad m => HiFun -> HiValue -> HiValue -> HiValue -> Evaluator m HiValue
+evalFuncTernary HiFunIf cond thenBranch elseBranch = do
+  eCond <- takeBool cond
+  return $ if eCond then thenBranch else elseBranch
+evalFuncTernary _ _ _ _ = throwError HiErrorArityMismatch
+
+-- ArgTakers
+
+takeNum :: Monad m => HiValue -> Evaluator m Rational
+takeNum (HiValueNumber x) = return x
+takeNum _ = throwError HiErrorInvalidArgument
+
+takeBool :: Monad m => HiValue -> Evaluator m Bool
+takeBool (HiValueBool b) = return b
+takeBool _ = throwError HiErrorInvalidArgument
+
+takeDivisor :: Monad m => HiValue -> Evaluator m Rational
+takeDivisor val = do
+  d <- takeNum val
+  if d == 0 then throwError HiErrorDivideByZero else return d
+
+takeSelf :: Monad m => HiValue -> Evaluator m HiValue
+takeSelf = return
