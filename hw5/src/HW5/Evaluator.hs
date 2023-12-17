@@ -38,26 +38,24 @@ evalFuncUnary HiFunNot a = do
 evalFuncUnary _ _ = throwError HiErrorArityMismatch
 
 evalFuncBinary :: Monad m => HiFun -> HiValue -> HiValue -> Evaluator m HiValue
-evalFuncBinary HiFunDiv = evalFuncBinarySimple takeNum takeDivisor (/) HiValueNumber
-evalFuncBinary HiFunMul = evalFuncBinarySimple takeNum takeNum (*) HiValueNumber
-evalFuncBinary HiFunAdd = evalFuncBinarySimple takeNum takeNum (+) HiValueNumber
-evalFuncBinary HiFunSub = evalFuncBinarySimple takeNum takeNum (-) HiValueNumber
-evalFuncBinary HiFunAnd = evalFuncBinarySimple takeBool takeBool (&&) HiValueBool
-evalFuncBinary HiFunOr = evalFuncBinarySimple takeBool takeBool (||) HiValueBool
-evalFuncBinary HiFunLessThan = evalFuncBinarySimple takeSelf takeSelf  (<) HiValueBool
-evalFuncBinary HiFunGreaterThan = evalFuncBinarySimple takeSelf takeSelf (>) HiValueBool
-evalFuncBinary HiFunEquals = evalFuncBinarySimple takeSelf takeSelf (==) HiValueBool
-evalFuncBinary HiFunNotLessThan = evalFuncBinarySimple takeSelf takeSelf (>=) HiValueBool
-evalFuncBinary HiFunNotGreaterThan = evalFuncBinarySimple takeSelf takeSelf (<=) HiValueBool
-evalFuncBinary HiFunNotEquals = evalFuncBinarySimple takeSelf takeSelf (/=) HiValueBool
-evalFuncBinary _ = mismatch where
-  mismatch :: Monad m => HiValue -> HiValue -> Evaluator m HiValue
-  mismatch _ _ = throwError HiErrorArityMismatch
+evalFuncBinary HiFunDiv = evalFuncBinary' takeNum takeDivisor (/) HiValueNumber
+evalFuncBinary HiFunMul = evalFuncBinary' takeNum takeNum (*) HiValueNumber
+evalFuncBinary HiFunAdd = evalFuncBinary' takeNum takeNum (+) HiValueNumber
+evalFuncBinary HiFunSub = evalFuncBinary' takeNum takeNum (-) HiValueNumber
+evalFuncBinary HiFunAnd = evalFuncBinary' takeBool takeBool (&&) HiValueBool
+evalFuncBinary HiFunOr = evalFuncBinary' takeBool takeBool (||) HiValueBool
+evalFuncBinary HiFunLessThan = evalFuncBinary' return return  (<) HiValueBool
+evalFuncBinary HiFunGreaterThan = evalFuncBinary' return return (>) HiValueBool
+evalFuncBinary HiFunEquals = evalFuncBinary' return return (==) HiValueBool
+evalFuncBinary HiFunNotLessThan = evalFuncBinary' return return (>=) HiValueBool
+evalFuncBinary HiFunNotGreaterThan = evalFuncBinary' return return (<=) HiValueBool
+evalFuncBinary HiFunNotEquals = evalFuncBinary' return return (/=) HiValueBool
+evalFuncBinary _ = do const (do const (throwError HiErrorArityMismatch))
 
-evalFuncBinarySimple :: Monad m => ArgTaker m a -> ArgTaker m b -> BinaryFunction a b c -> (c -> HiValue) -> HiValue -> HiValue -> Evaluator m HiValue
-evalFuncBinarySimple argChecker1 argChecker2 f resWrapper a b = do
-  ea <- argChecker1 a
-  eb <- argChecker2 b
+evalFuncBinary' :: Monad m => ArgTaker m a -> ArgTaker m b -> BinaryFunction a b c -> (c -> HiValue) -> HiValue -> HiValue -> Evaluator m HiValue
+evalFuncBinary' argTaker1 argTaker2 f resWrapper a b = do
+  ea <- argTaker1 a
+  eb <- argTaker2 b
   return $ resWrapper $ f ea eb
 
 evalFuncTernary :: Monad m => HiFun -> HiValue -> HiValue -> HiValue -> Evaluator m HiValue
@@ -80,6 +78,3 @@ takeDivisor :: Monad m => HiValue -> Evaluator m Rational
 takeDivisor val = do
   d <- takeNum val
   if d == 0 then throwError HiErrorDivideByZero else return d
-
-takeSelf :: Monad m => HiValue -> Evaluator m HiValue
-takeSelf = return

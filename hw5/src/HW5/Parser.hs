@@ -75,26 +75,20 @@ functionArgs = inParentheses $ expr `sepBy` takeToken ","
 
 -- TODO IN T3
 operatorTable :: [[Operator Parser HiExpr]]
-operatorTable = [ [  InfixL $ supportExpr HiFunDiv <$ takeTokenNotFollowedBy "/" "="
-                  , supportBinaryInfixL "*" HiFunMul ]
-                , [ supportBinaryInfixL "+" HiFunAdd
-                  , supportBinaryInfixL "-" HiFunSub ]
-                , [ supportBinaryInfixN "<=" HiFunNotGreaterThan
-                  , supportBinaryInfixN ">=" HiFunNotLessThan
-                  , supportBinaryInfixN "<" HiFunLessThan
-                  , supportBinaryInfixN ">" HiFunGreaterThan
-                  , supportBinaryInfixN "==" HiFunEquals
-                  , supportBinaryInfixN "/=" HiFunNotEquals ]
-                , [ supportBinaryInfixR "&&" HiFunAnd ]
-                , [ supportBinaryInfixR "||" HiFunOr ] ] where
-  supportBinaryInfixL :: String -> HiFun -> Operator Parser HiExpr
-  supportBinaryInfixL token constr = InfixL $ supportExpr constr <$ takeToken token
+operatorTable = [ [  InfixL $ supportFun HiFunDiv <$ takeTokenNotFollowedBy "/" "="
+                  , supportSign "*" HiFunMul InfixL ]
+                , [ supportSign "+" HiFunAdd InfixL
+                  , supportSign "-" HiFunSub InfixL ]
+                , [ supportSign "<=" HiFunNotGreaterThan InfixN
+                  , supportSign ">=" HiFunNotLessThan InfixN
+                  , supportSign "<" HiFunLessThan InfixN
+                  , supportSign ">" HiFunGreaterThan InfixN
+                  , supportSign "==" HiFunEquals InfixN
+                  , supportSign "/=" HiFunNotEquals InfixN ]
+                , [ supportSign "&&" HiFunAnd InfixR ]
+                , [ supportSign "||" HiFunOr InfixR ] ] where
+  supportSign :: String -> HiFun -> (Parser (HiExpr -> HiExpr -> HiExpr) -> Operator Parser HiExpr) -> Operator Parser HiExpr
+  supportSign token fConstr assoc = assoc $ supportFun fConstr <$ takeToken token
 
-  supportBinaryInfixR :: String -> HiFun -> Operator Parser HiExpr
-  supportBinaryInfixR token constr = InfixR $ supportExpr constr <$ takeToken token
-
-  supportBinaryInfixN :: String -> HiFun -> Operator Parser HiExpr
-  supportBinaryInfixN token constr = InfixN $ supportExpr constr <$ takeToken token
-
-  supportExpr :: HiFun -> (HiExpr -> HiExpr -> HiExpr)
-  supportExpr f a b = HiExprApply (HiExprValue $ HiValueFunction f) [a, b]
+  supportFun :: HiFun -> (HiExpr -> HiExpr -> HiExpr)
+  supportFun f a b = HiExprApply (HiExprValue $ HiValueFunction f) [a, b]
