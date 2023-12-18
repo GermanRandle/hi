@@ -41,6 +41,7 @@ library
     , parser-combinators
     , prettyprinter
     , prettyprinter-ansi-terminal
+    , random
     , scientific
     , serialise
     , text

@@ -109,6 +109,7 @@ evalFuncBinary HiFunNotGreaterThan = evalFuncBinary' return return (<=) HiValueB
 evalFuncBinary HiFunNotEquals = evalFuncBinary' return return (/=) HiValueBool
 evalFuncBinary HiFunRange = evalFuncBinary' takeNum takeNum (\a b -> [a .. b]) (HiValueList . S.fromList . map HiValueNumber)
 evalFuncBinary HiFunWrite = evalFuncBinary' takeText takeText (\f t -> HiValueAction $ HiActionWrite (T.unpack f) (encodeUtf8 t)) id
+evalFuncBinary HiFunRand = evalFuncBinary' takeInteger takeInteger (\l r -> HiActionRand (fromInteger l) (fromInteger r)) HiValueAction
 evalFuncBinary f = evalFuncBinaryPolymorphic f
 
 evalFuncBinaryPolymorphic HiFunAdd a@(HiValueNumber _) = evalFuncBinary' takeNum takeNum (+) HiValueNumber a

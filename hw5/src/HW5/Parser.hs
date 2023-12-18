@@ -130,7 +130,8 @@ functionName = lexeme $
   <|> support HiFunWrite
   <|> support HiFunMkDir
   <|> support HiFunChDir
-  <|> support HiFunParseTime where
+  <|> support HiFunParseTime
+  <|> support HiFunRand where
     support :: HiFun -> Parser HiValue
     support f = HiValueFunction . const f <$> takeToken (funName f)
 

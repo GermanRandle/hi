@@ -67,6 +67,7 @@ prettyValueAction (HiActionMkDir d) = pretty "mkdir" <> lparen <> viaShow d <> r
 prettyValueAction (HiActionChDir d) = pretty "cd" <> lparen <> viaShow d <> rparen
 prettyValueAction HiActionCwd = pretty "cwd"
 prettyValueAction HiActionNow = pretty "now"
+prettyValueAction (HiActionRand l r) = pretty "rand" <> lparen <+> viaShow l <> comma <+> viaShow r <+> rparen
 
 prettyValueTime :: C.UTCTime -> Doc AnsiStyle
 prettyValueTime t = pretty "parse-time" <> lparen <> dquotes (viaShow t) <> rparen

@@ -13,6 +13,7 @@ import Data.Text.Encoding (decodeUtf8')
 import Data.Time.Clock as C
 import HW5.Base (HiAction (..), HiMonad, HiValue (..), runAction)
 import System.Directory (createDirectory, doesFileExist, getCurrentDirectory, listDirectory, setCurrentDirectory)
+import System.Random (getStdRandom, uniformR)
 
 data HiPermission =
     AllowRead
@@ -57,7 +58,7 @@ instance HiMonad HIO where
   runAction HiActionNow = HIO $ \perm -> do
     checkPerm perm AllowTime
     HiValueTime <$> C.getCurrentTime
-
+  runAction (HiActionRand l r) = HIO $ const (do HiValueNumber . toRational <$> getStdRandom (uniformR (l, r)))
 
 instance Monad HIO where
   m >>= f = HIO $ \perm -> runHIO m perm >>= \res -> runHIO (f res) perm
