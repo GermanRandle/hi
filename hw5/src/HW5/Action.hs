@@ -1,6 +1,7 @@
 module HW5.Action
   ( HIO (..)
   , HiPermission (..)
+  , PermissionException (..)
   ) where
 
 import Control.Exception (Exception, throwIO)
