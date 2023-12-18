@@ -59,6 +59,9 @@ instance HiMonad HIO where
     checkPerm perm AllowTime
     HiValueTime <$> C.getCurrentTime
   runAction (HiActionRand l r) = HIO $ const (do HiValueNumber . toRational <$> getStdRandom (uniformR (l, r)))
+  runAction (HiActionEcho t) = HIO $ \perm -> do
+    checkPerm perm AllowWrite
+    HiValueNull <$ putStrLn (T.unpack t)
 
 instance Monad HIO where
   m >>= f = HIO $ \perm -> runHIO m perm >>= \res -> runHIO (f res) perm

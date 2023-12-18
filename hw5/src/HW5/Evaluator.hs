@@ -44,29 +44,53 @@ evalRun expr = do
 evalApply :: HiMonad m => HiExpr -> [HiExpr] -> Evaluator m HiValue
 evalApply object args = do
   eObject <- eval' object
-  eArgs <- mapM eval' args
   case eObject of
-    (HiValueFunction f) -> evalFunc f eArgs
-    (HiValueString s) -> stringIndex s eArgs
-    (HiValueList l) -> listIndex l eArgs
-    (HiValueBytes b) -> bytesIndex b eArgs
-    _ -> throwError HiErrorInvalidFunction
+    (HiValueFunction f) -> evalFunc f args
+    _ -> do
+      eArgs <- mapM eval' args
+      case eObject of
+        (HiValueString s) -> stringIndex s eArgs
+        (HiValueList l) -> listIndex l eArgs
+        (HiValueBytes b) -> bytesIndex b eArgs
+        _ -> throwError HiErrorInvalidFunction
 
-evalFunc :: HiMonad m => HiFun -> [HiValue] -> Evaluator m HiValue
-evalFunc HiFunList l = return $ HiValueList $ S.fromList l
-evalFunc HiFunFold args = do
+-- for lazy
+evalFunc :: HiMonad m => HiFun -> [HiExpr] -> Evaluator m HiValue
+evalFunc HiFunIf [cond, thenBranch, elseBranch] = do
+  dCond <- eval' cond
+  eCond <- takeBool dCond
+  if eCond then eval' thenBranch else eval' elseBranch
+evalFunc HiFunIf _ = throwError HiErrorArityMismatch
+evalFunc HiFunAnd [a, b] = do
+  ea <- eval' a
+  case ea of
+    (HiValueBool False) -> return $ HiValueBool False
+    HiValueNull -> return HiValueNull
+    _ -> eval' b
+evalFunc HiFunOr [a, b] = do
+  ea <- eval' a
+  case ea of
+    (HiValueBool True) -> return $ HiValueBool True
+    HiValueNull -> return HiValueNull
+    _ -> eval' b
+evalFunc f args = do
+  eArgs <- mapM eval' args
+  evalFunc' f eArgs
+
+evalFunc' :: HiMonad m => HiFun -> [HiValue] -> Evaluator m HiValue
+evalFunc' HiFunList l = return $ HiValueList $ S.fromList l
+evalFunc' HiFunFold args = do
   case args of
     [f, l] -> do
       ef <- takeFun f
       el <- takeList l
       case el of
-        S.Empty -> return $ HiValueList S.Empty
+        S.Empty -> return HiValueNull
         (h S.:<| t) -> foldM (evalFuncBinary ef) h t
     _ -> throwError HiErrorArityMismatch
-evalFunc f [a] = evalFuncUnary f a
-evalFunc f [a, b] = evalFuncBinary f a b
-evalFunc f [a, b, c] = evalFuncTernary f a b c
-evalFunc _ _ = throwError HiErrorArityMismatch
+evalFunc' f [a] = evalFuncUnary f a
+evalFunc' f [a, b] = evalFuncBinary f a b
+evalFunc' _ _ = throwError HiErrorArityMismatch
 
 evalFuncUnary, evalFuncUnaryPolymorphic :: HiMonad m => HiFun -> HiValue -> Evaluator m HiValue
 evalFuncUnary HiFunNot = evalFuncUnary' takeBool not HiValueBool
@@ -85,6 +109,7 @@ evalFuncUnary HiFunRead = evalFuncUnary' takeText T.unpack (HiValueAction . HiAc
 evalFuncUnary HiFunMkDir = evalFuncUnary' takeText T.unpack (HiValueAction . HiActionMkDir)
 evalFuncUnary HiFunChDir = evalFuncUnary' takeText T.unpack (HiValueAction . HiActionChDir)
 evalFuncUnary HiFunParseTime = evalFuncUnary' takeText (maybe HiValueNull HiValueTime . (readMaybe . T.unpack)) id
+evalFuncUnary HiFunEcho = evalFuncUnary' takeText HiActionEcho HiValueAction
 evalFuncUnary f = evalFuncUnaryPolymorphic f
 
 evalFuncUnaryPolymorphic HiFunLength s@(HiValueString _) = evalFuncUnary' takeText (toRational . T.length) HiValueNumber s
@@ -99,8 +124,6 @@ evalFuncUnary' argTaker f resWrapper a = do
   return $ resWrapper $ f ea
 
 evalFuncBinary, evalFuncBinaryPolymorphic :: HiMonad m => HiFun -> HiValue -> HiValue -> Evaluator m HiValue
-evalFuncBinary HiFunAnd = evalFuncBinary' takeBool takeBool (&&) HiValueBool
-evalFuncBinary HiFunOr = evalFuncBinary' takeBool takeBool (||) HiValueBool
 evalFuncBinary HiFunLessThan = evalFuncBinary' return return  (<) HiValueBool
 evalFuncBinary HiFunGreaterThan = evalFuncBinary' return return (>) HiValueBool
 evalFuncBinary HiFunEquals = evalFuncBinary' return return (==) HiValueBool
@@ -132,12 +155,6 @@ evalFuncBinary' argTaker1 argTaker2 f resWrapper a b = do
   ea <- argTaker1 a
   eb <- argTaker2 b
   return $ resWrapper $ f ea eb
-
-evalFuncTernary :: HiMonad m => HiFun -> HiValue -> HiValue -> HiValue -> Evaluator m HiValue
-evalFuncTernary HiFunIf cond thenBranch elseBranch = do
-  eCond <- takeBool cond
-  return $ if eCond then thenBranch else elseBranch
-evalFuncTernary _ _ _ _ = throwError HiErrorArityMismatch
 
 stringIndex :: HiMonad m => T.Text -> [HiValue] -> Evaluator m HiValue
 stringIndex s [el] = do

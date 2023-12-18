@@ -56,6 +56,7 @@ data HiFun =
   | HiFunChDir
   | HiFunParseTime
   | HiFunRand
+  | HiFunEcho
   deriving (Show, Eq, Ord, Generic, Serialise)
 
 data HiValue =
@@ -91,6 +92,7 @@ data HiAction =
   | HiActionCwd
   | HiActionNow
   | HiActionRand Int Int
+  | HiActionEcho T.Text
   deriving (Show, Eq, Ord, Generic, Serialise)
 
 class Monad m => HiMonad m where
@@ -133,3 +135,4 @@ funName HiFunMkDir = "mkdir"
 funName HiFunChDir = "cd"
 funName HiFunParseTime = "parse-time"
 funName HiFunRand = "rand"
+funName HiFunEcho = "echo"

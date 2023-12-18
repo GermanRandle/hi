@@ -32,3 +32,6 @@ main = runInputT defaultSettings loop
 
     permissons :: Set HiPermission
     permissons = fromList [AllowRead, AllowWrite, AllowTime]
+
+-- if(true,echo("AAAAA")!,echo("BBBBB")!)
+-- if(false,echo("AAAAA")!,echo("BBBBB")!)
