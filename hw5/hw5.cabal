@@ -40,8 +40,10 @@ library
     , prettyprinter
     , prettyprinter-ansi-terminal
     , scientific
+    , serialise
     , text
     , transformers
+    , zlib
   default-language: Haskell2010
 
 executable hi

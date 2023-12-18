@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+
 module HW5.Base
   ( HiError (..)
   , HiExpr (..)
@@ -6,9 +9,11 @@ module HW5.Base
   , funName
   ) where
 
+import Codec.Serialise (Serialise)
 import qualified Data.ByteString as B
 import qualified Data.Sequence as S
 import qualified Data.Text as T
+import GHC.Generics (Generic)
 
 data HiFun =
     HiFunDiv
@@ -41,7 +46,7 @@ data HiFun =
   | HiFunUnzip
   | HiFunSerialise
   | HiFunDeserialise
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic, Serialise)
 
 data HiValue =
     HiValueNull
@@ -51,7 +56,7 @@ data HiValue =
   | HiValueFunction HiFun
   | HiValueList (S.Seq HiValue)
   | HiValueBytes B.ByteString
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic, Serialise)
 
 data HiExpr =
     HiExprValue HiValue

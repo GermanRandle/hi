@@ -2,9 +2,13 @@ module HW5.Evaluator
   ( eval
   ) where
 
+import Codec.Compression.Zlib (bestCompression, compressLevel, compressWith, decompress, defaultCompressParams)
+import Codec.Serialise (deserialiseOrFail, serialise)
 import Control.Monad.Except (ExceptT, foldM, throwError)
 import Control.Monad.Trans.Except (runExceptT)
 import qualified Data.ByteString as B
+import Data.ByteString.Lazy (fromStrict, toStrict)
+import Data.Either (fromRight)
 import Data.Foldable (toList)
 import Data.Maybe (fromMaybe)
 import Data.Ratio (denominator, numerator)
@@ -63,6 +67,10 @@ evalFuncUnary HiFunPackBytes = evalFuncUnary' takeWord8List B.pack HiValueBytes
 evalFuncUnary HiFunUnpackBytes = evalFuncUnary' takeBinary (S.fromList . map (HiValueNumber . toRational) . B.unpack) HiValueList
 evalFuncUnary HiFunEncodeUtf8 = evalFuncUnary' takeText encodeUtf8 HiValueBytes
 evalFuncUnary HiFunDecodeUtf8 = evalFuncUnary' takeBinary (either (const HiValueNull) HiValueString . decodeUtf8') id
+evalFuncUnary HiFunZip = evalFuncUnary' takeBinary (toStrict . compressWith defaultCompressParams { compressLevel = bestCompression } . fromStrict) HiValueBytes
+evalFuncUnary HiFunUnzip = evalFuncUnary' takeBinary (toStrict . decompress . fromStrict) HiValueBytes
+evalFuncUnary HiFunSerialise = evalFuncUnary' return (toStrict . serialise) HiValueBytes
+evalFuncUnary HiFunDeserialise = evalFuncUnary' takeBinary (fromRight HiValueNull . (deserialiseOrFail . fromStrict)) id
 evalFuncUnary f = evalFuncUnaryPolymorphic f
 
 evalFuncUnaryPolymorphic HiFunLength s@(HiValueString _) = evalFuncUnary' takeText (toRational . T.length) HiValueNumber s
@@ -136,7 +144,7 @@ listIndex _ _ = throwError HiErrorArityMismatch
 bytesIndex :: Monad m => B.ByteString -> [HiValue] -> Evaluator m HiValue
 bytesIndex b [el] = do
   idx <- fromIntegral <$> takeInteger el
-  return $ maybe HiValueNull (HiValueNumber . toRational . fst)  (B.uncons $ B.drop idx b)
+  return $ maybe HiValueNull (HiValueNumber . toRational . fst)  (B.uncons $ B.drop idx b) -- B.!? :(
 bytesIndex b [el1, el2] = do
   res <- slice (B.unpack b) el1 el2
   return $ HiValueBytes $ B.pack res

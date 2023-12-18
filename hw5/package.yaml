@@ -42,8 +42,10 @@ library:
     - prettyprinter
     - prettyprinter-ansi-terminal
     - scientific
+    - serialise
     - text
     - transformers
+    - zlib
 
 executables:
   hi:
