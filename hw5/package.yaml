@@ -34,7 +34,7 @@ ghc-options:
 library:
   source-dirs: src
   dependencies:
-    - bytestring >= 0.11
+    - bytestring
     - containers
     - megaparsec
     - mtl

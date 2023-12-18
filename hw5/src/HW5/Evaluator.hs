@@ -136,7 +136,7 @@ listIndex _ _ = throwError HiErrorArityMismatch
 bytesIndex :: Monad m => B.ByteString -> [HiValue] -> Evaluator m HiValue
 bytesIndex b [el] = do
   idx <- fromIntegral <$> takeInteger el
-  return $ maybe HiValueNull (HiValueNumber . toRational)  (b B.!? idx)
+  return $ maybe HiValueNull (HiValueNumber . toRational . fst)  (B.uncons $ B.drop idx b)
 bytesIndex b [el1, el2] = do
   res <- slice (B.unpack b) el1 el2
   return $ HiValueBytes $ B.pack res
