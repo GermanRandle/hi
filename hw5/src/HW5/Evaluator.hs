@@ -70,9 +70,9 @@ evalFunc HiFunAnd [a, b] = do
 evalFunc HiFunOr [a, b] = do
   ea <- eval' a
   case ea of
-    (HiValueBool True) -> return $ HiValueBool True
-    HiValueNull -> return HiValueNull
-    _ -> eval' b
+    (HiValueBool False) -> eval' b
+    HiValueNull -> eval' b
+    res -> return res
 evalFunc f args = do
   eArgs <- mapM eval' args
   evalFunc' f eArgs
