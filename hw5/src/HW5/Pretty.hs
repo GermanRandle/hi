@@ -9,9 +9,9 @@ import Data.Ratio ((%), denominator, numerator)
 import Data.Scientific (fromRationalRepetendUnlimited, toRealFloat)
 import qualified Data.Sequence as S
 import Data.Word (Word8)
-import HW5.Base (HiValue (..), funName)
+import HW5.Base (HiAction (..), HiValue (..), funName)
 import Numeric (showHex)
-import Prettyprinter (Doc, (<+>), comma, encloseSep, lbracket, pretty, rbracket, slash, space, viaShow)
+import Prettyprinter (Doc, (<+>), comma, encloseSep, lbracket, lparen, pretty, rbracket, rparen, slash, space, viaShow)
 import Prettyprinter.Render.Terminal (AnsiStyle)
 
 prettyValue :: HiValue -> Doc AnsiStyle
@@ -22,6 +22,7 @@ prettyValue HiValueNull = pretty "null"
 prettyValue (HiValueString s) = viaShow s
 prettyValue (HiValueList l) = prettyValueList l
 prettyValue (HiValueBytes b) = prettyValueBytes b
+prettyValue (HiValueAction a) = prettyValueAction a
 
 prettyValueNumber :: Integer -> Integer -> Doc AnsiStyle
 prettyValueNumber n d
@@ -56,3 +57,10 @@ prettyValueBytes b = encloseSep (lbracket <> grid <> space) (space <> grid <> rb
 
   prettyHex :: Word8 -> Doc AnsiStyle
   prettyHex w = pretty $ (if w < 16 then "0" else "") ++ showHex w ""
+
+prettyValueAction :: HiAction -> Doc AnsiStyle
+prettyValueAction (HiActionRead f) = pretty "read" <> lparen <> viaShow f <> rparen
+prettyValueAction (HiActionWrite f t) = pretty "write" <> lparen <> viaShow f <> comma <+> prettyValueBytes t <> rparen
+prettyValueAction (HiActionMkDir d) = pretty "mkdir" <> lparen <> viaShow d <> rparen
+prettyValueAction (HiActionChDir d) = pretty "cd" <> lparen <> viaShow d <> rparen
+prettyValueAction HiActionCwd = pretty "cwd"

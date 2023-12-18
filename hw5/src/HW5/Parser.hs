@@ -10,7 +10,7 @@ import Data.Char (toLower)
 import qualified Data.Text as T
 import Data.Void (Void)
 import Data.Word (Word8)
-import HW5.Base (HiExpr (..), HiValue (..), HiFun(..), funName)
+import HW5.Base (HiAction (..), HiExpr (..), HiValue (..), HiFun(..), funName)
 import Text.Megaparsec (MonadParsec (eof), Parsec, (<|>), manyTill, notFollowedBy, runParser, sepEndBy, try)
 import Text.Megaparsec.Char (char, hexDigitChar, space)
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -29,11 +29,17 @@ inParentheses inner = takeToken "(" *> inner <* takeToken ")"
 
 exprTerm :: Parser HiExpr
 exprTerm = do
-  w <- optional $ inParentheses expr
-  maybe exprTerm' return w
+  e <- exprTerm'
+  runs <- many $ takeToken "!"
+  return $ foldl (\ee _ -> HiExprRun ee) e runs
 
 exprTerm' :: Parser HiExpr
 exprTerm' = do
+  w <- optional $ inParentheses expr
+  maybe exprTerm'' return w
+
+exprTerm'' :: Parser HiExpr
+exprTerm'' = do
   object <- (HiExprValue <$> value) <|> listLiteral
   args <- many functionArgs
   return $ foldl HiExprApply object args
@@ -58,6 +64,9 @@ boolean = support False <|> support True where
 nullKeyword :: Parser HiValue
 nullKeyword = HiValueNull <$ takeToken "null"
 
+cwdKeyword :: Parser HiValue
+cwdKeyword = HiValueAction HiActionCwd <$ takeToken "cwd"
+
 stringLiteral :: Parser HiValue
 stringLiteral = lexeme $ HiValueString . T.pack <$> (char '"' >> manyTill L.charLiteral (char '"'))
 
@@ -65,7 +74,7 @@ listLiteral :: Parser HiExpr
 listLiteral = HiExprApply (HiExprValue $ HiValueFunction HiFunList) <$> (takeToken "[" *> (expr `sepBy` takeToken ",") <* takeToken "]")
 
 byteArrayLiteral :: Parser HiValue
-byteArrayLiteral = HiValueBytes . B.pack <$> (takeToken "[#" *> lexeme (hex2 `sepEndBy` space) <* takeToken "#]") where
+byteArrayLiteral = HiValueBytes . B.pack <$> (takeToken "[#" *> (hex2 `sepEndBy` space) <* takeToken "#]") where
   hex2 :: Parser Word8
   hex2 = do
     first <- hexDigitChar
@@ -79,6 +88,7 @@ value = functionName
     <|> nullKeyword 
     <|> stringLiteral 
     <|> byteArrayLiteral
+    <|> cwdKeyword
 
 functionName :: Parser HiValue
 functionName = lexeme $ 
@@ -111,7 +121,11 @@ functionName = lexeme $
   <|> support HiFunZip
   <|> support HiFunUnzip
   <|> support HiFunSerialise
-  <|> support HiFunDeserialise where
+  <|> support HiFunDeserialise 
+  <|> support HiFunRead
+  <|> support HiFunWrite
+  <|> support HiFunMkDir
+  <|> support HiFunChDir where
     support :: HiFun -> Parser HiValue
     support f = HiValueFunction . const f <$> takeToken (funName f)
 

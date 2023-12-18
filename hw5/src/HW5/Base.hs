@@ -2,11 +2,14 @@
 {-# LANGUAGE DeriveGeneric #-}
 
 module HW5.Base
-  ( HiError (..)
+  ( HiAction (..)
+  , HiError (..)
   , HiExpr (..)
   , HiFun (..)
+  , HiMonad
   , HiValue (..)
   , funName
+  , runAction
   ) where
 
 import Codec.Serialise (Serialise)
@@ -46,6 +49,10 @@ data HiFun =
   | HiFunUnzip
   | HiFunSerialise
   | HiFunDeserialise
+  | HiFunRead
+  | HiFunWrite
+  | HiFunMkDir
+  | HiFunChDir
   deriving (Show, Eq, Ord, Generic, Serialise)
 
 data HiValue =
@@ -56,11 +63,13 @@ data HiValue =
   | HiValueFunction HiFun
   | HiValueList (S.Seq HiValue)
   | HiValueBytes B.ByteString
+  | HiValueAction HiAction
   deriving (Show, Eq, Ord, Generic, Serialise)
 
 data HiExpr =
     HiExprValue HiValue
   | HiExprApply HiExpr [HiExpr]
+  | HiExprRun HiExpr
   deriving Show
 
 data HiError =
@@ -69,6 +78,17 @@ data HiError =
   | HiErrorArityMismatch
   | HiErrorDivideByZero
   deriving Show
+
+data HiAction =
+    HiActionRead  FilePath
+  | HiActionWrite FilePath B.ByteString
+  | HiActionMkDir FilePath
+  | HiActionChDir FilePath
+  | HiActionCwd
+  deriving (Show, Eq, Ord, Generic, Serialise)
+
+class Monad m => HiMonad m where
+  runAction :: HiAction -> m HiValue
 
 funName :: HiFun -> String
 funName HiFunDiv = "div"
@@ -101,3 +121,7 @@ funName HiFunZip = "zip"
 funName HiFunUnzip = "unzip"
 funName HiFunSerialise = "serialise"
 funName HiFunDeserialise = "deserialise"
+funName HiFunRead = "read"
+funName HiFunWrite = "write"
+funName HiFunMkDir = "mkdir"
+funName HiFunChDir = "cd"

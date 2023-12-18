@@ -21,6 +21,7 @@ source-repository head
 
 library
   exposed-modules:
+      HW5.Action
       HW5.Base
       HW5.Evaluator
       HW5.Parser
@@ -34,6 +35,7 @@ library
       base >=4.7 && <5
     , bytestring
     , containers
+    , directory
     , megaparsec
     , mtl
     , parser-combinators
@@ -55,6 +57,7 @@ executable hi
   ghc-options: -Wall -Werror -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , containers
     , haskeline
     , hw5
   default-language: Haskell2010

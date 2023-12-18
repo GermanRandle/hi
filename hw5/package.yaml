@@ -36,6 +36,7 @@ library:
   dependencies:
     - bytestring
     - containers
+    - directory
     - megaparsec
     - mtl
     - parser-combinators
@@ -57,6 +58,7 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - hw5
+    - containers
     - haskeline
 
 tests:

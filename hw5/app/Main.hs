@@ -1,5 +1,8 @@
 module Main (main) where
 
+import Control.Monad.IO.Class (liftIO)
+import Data.Set (Set, fromList)
+import HW5.Action (HiPermission (..), runHIO)
 import HW5.Evaluator (eval)
 import HW5.Parser (parse)
 import HW5.Pretty (prettyValue)
@@ -19,10 +22,13 @@ main = runInputT defaultSettings loop
             (Left parseErr) -> outputStrLn $ "Parse error: " ++ show parseErr
             (Right expr) -> do
               outputStrLn $ "Parse success: " ++ show expr
-              evaluated <- eval expr
+              evaluated <- liftIO $ runHIO (eval expr) permissons
               case evaluated of
                 (Left evalErr) -> outputStrLn $ "Eval error: " ++ show evalErr
                 (Right value) -> do
                   outputStrLn $ "Eval success: " ++ show value
                   outputStrLn $ "Pretty: " ++ show (prettyValue value)
           loop
+
+    permissons :: Set HiPermission
+    permissons = fromList [AllowRead, AllowWrite]

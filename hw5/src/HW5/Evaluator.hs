@@ -4,7 +4,7 @@ module HW5.Evaluator
 
 import Codec.Compression.Zlib (bestCompression, compressLevel, compressWith, decompress, defaultCompressParams)
 import Codec.Serialise (deserialiseOrFail, serialise)
-import Control.Monad.Except (ExceptT, foldM, throwError)
+import Control.Monad.Except (ExceptT, foldM, lift, throwError)
 import Control.Monad.Trans.Except (runExceptT)
 import qualified Data.ByteString as B
 import Data.ByteString.Lazy (fromStrict, toStrict)
@@ -17,21 +17,29 @@ import qualified Data.Sequence as S
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Data.Word (Word8)
-import HW5.Base (HiError (..), HiExpr (..), HiFun(..), HiValue (..))
+import HW5.Base (HiAction (..), HiError (..), HiExpr (..), HiFun(..), HiMonad, HiValue (..), runAction)
 
 type ArgTaker m a = HiValue -> Evaluator m a
 type BinaryFunction a b c = a -> b -> c
 type Evaluator = ExceptT HiError
 type UnaryFunction a b = a -> b
 
-eval :: Monad m => HiExpr -> m (Either HiError HiValue)
+eval :: HiMonad m => HiExpr -> m (Either HiError HiValue)
 eval expr = runExceptT $ eval' expr
 
-eval' :: Monad m => HiExpr -> Evaluator m HiValue
+eval' :: HiMonad m => HiExpr -> Evaluator m HiValue
 eval' (HiExprValue x) = return x
 eval' (HiExprApply f args) = evalApply f args
+eval' (HiExprRun r) = evalRun r
 
-evalApply :: Monad m => HiExpr -> [HiExpr] -> Evaluator m HiValue
+evalRun :: HiMonad m => HiExpr -> Evaluator m HiValue
+evalRun expr = do
+  runnable <- eval' expr
+  case runnable of
+    (HiValueAction action) -> lift $ runAction action
+    _ -> throwError HiErrorInvalidArgument
+
+evalApply :: HiMonad m => HiExpr -> [HiExpr] -> Evaluator m HiValue
 evalApply object args = do
   eObject <- eval' object
   eArgs <- mapM eval' args
@@ -42,7 +50,7 @@ evalApply object args = do
     (HiValueBytes b) -> bytesIndex b eArgs
     _ -> throwError HiErrorInvalidFunction
 
-evalFunc :: Monad m => HiFun -> [HiValue] -> Evaluator m HiValue
+evalFunc :: HiMonad m => HiFun -> [HiValue] -> Evaluator m HiValue
 evalFunc HiFunList l = return $ HiValueList $ S.fromList l
 evalFunc HiFunFold args = do
   case args of
@@ -58,7 +66,7 @@ evalFunc f [a, b] = evalFuncBinary f a b
 evalFunc f [a, b, c] = evalFuncTernary f a b c
 evalFunc _ _ = throwError HiErrorArityMismatch
 
-evalFuncUnary, evalFuncUnaryPolymorphic :: Monad m => HiFun -> HiValue -> Evaluator m HiValue
+evalFuncUnary, evalFuncUnaryPolymorphic :: HiMonad m => HiFun -> HiValue -> Evaluator m HiValue
 evalFuncUnary HiFunNot = evalFuncUnary' takeBool not HiValueBool
 evalFuncUnary HiFunToUpper = evalFuncUnary' takeText T.toUpper HiValueString
 evalFuncUnary HiFunToLower = evalFuncUnary' takeText T.toLower HiValueString
@@ -71,6 +79,9 @@ evalFuncUnary HiFunZip = evalFuncUnary' takeBinary (toStrict . compressWith defa
 evalFuncUnary HiFunUnzip = evalFuncUnary' takeBinary (toStrict . decompress . fromStrict) HiValueBytes
 evalFuncUnary HiFunSerialise = evalFuncUnary' return (toStrict . serialise) HiValueBytes
 evalFuncUnary HiFunDeserialise = evalFuncUnary' takeBinary (fromRight HiValueNull . (deserialiseOrFail . fromStrict)) id
+evalFuncUnary HiFunRead = evalFuncUnary' takeText T.unpack (HiValueAction . HiActionRead)
+evalFuncUnary HiFunMkDir = evalFuncUnary' takeText T.unpack (HiValueAction . HiActionMkDir)
+evalFuncUnary HiFunChDir = evalFuncUnary' takeText T.unpack (HiValueAction . HiActionChDir)
 evalFuncUnary f = evalFuncUnaryPolymorphic f
 
 evalFuncUnaryPolymorphic HiFunLength s@(HiValueString _) = evalFuncUnary' takeText (toRational . T.length) HiValueNumber s
@@ -79,12 +90,12 @@ evalFuncUnaryPolymorphic HiFunReverse s@(HiValueString _) = evalFuncUnary' takeT
 evalFuncUnaryPolymorphic HiFunReverse l = evalFuncUnary' takeList S.reverse HiValueList l
 evalFuncUnaryPolymorphic _ _ = throwError HiErrorArityMismatch
 
-evalFuncUnary' :: Monad m => ArgTaker m a -> UnaryFunction a b -> (b -> HiValue) -> HiValue -> Evaluator m HiValue
+evalFuncUnary' :: HiMonad m => ArgTaker m a -> UnaryFunction a b -> (b -> HiValue) -> HiValue -> Evaluator m HiValue
 evalFuncUnary' argTaker f resWrapper a = do
   ea <- argTaker a
   return $ resWrapper $ f ea
 
-evalFuncBinary, evalFuncBinaryPolymorphic :: Monad m => HiFun -> HiValue -> HiValue -> Evaluator m HiValue
+evalFuncBinary, evalFuncBinaryPolymorphic :: HiMonad m => HiFun -> HiValue -> HiValue -> Evaluator m HiValue
 evalFuncBinary HiFunSub = evalFuncBinary' takeNum takeNum (-) HiValueNumber
 evalFuncBinary HiFunAnd = evalFuncBinary' takeBool takeBool (&&) HiValueBool
 evalFuncBinary HiFunOr = evalFuncBinary' takeBool takeBool (||) HiValueBool
@@ -95,6 +106,7 @@ evalFuncBinary HiFunNotLessThan = evalFuncBinary' return return (>=) HiValueBool
 evalFuncBinary HiFunNotGreaterThan = evalFuncBinary' return return (<=) HiValueBool
 evalFuncBinary HiFunNotEquals = evalFuncBinary' return return (/=) HiValueBool
 evalFuncBinary HiFunRange = evalFuncBinary' takeNum takeNum (\a b -> [a .. b]) (HiValueList . S.fromList . map HiValueNumber)
+evalFuncBinary HiFunWrite = evalFuncBinary' takeText takeText (\f t -> HiValueAction $ HiActionWrite (T.unpack f) (encodeUtf8 t)) id
 evalFuncBinary f = evalFuncBinaryPolymorphic f
 
 evalFuncBinaryPolymorphic HiFunAdd a@(HiValueNumber _) = evalFuncBinary' takeNum takeNum (+) HiValueNumber a
@@ -109,19 +121,19 @@ evalFuncBinaryPolymorphic HiFunMul a@(HiValueBytes _) = evalFuncBinary' takeBina
 evalFuncBinaryPolymorphic HiFunMul a = evalFuncBinary' takeList takeNatural (flip stimes) HiValueList a
 evalFuncBinaryPolymorphic _ _ = do const (throwError HiErrorArityMismatch)
 
-evalFuncBinary' :: Monad m => ArgTaker m a -> ArgTaker m b -> BinaryFunction a b c -> (c -> HiValue) -> HiValue -> HiValue -> Evaluator m HiValue
+evalFuncBinary' :: HiMonad m => ArgTaker m a -> ArgTaker m b -> BinaryFunction a b c -> (c -> HiValue) -> HiValue -> HiValue -> Evaluator m HiValue
 evalFuncBinary' argTaker1 argTaker2 f resWrapper a b = do
   ea <- argTaker1 a
   eb <- argTaker2 b
   return $ resWrapper $ f ea eb
 
-evalFuncTernary :: Monad m => HiFun -> HiValue -> HiValue -> HiValue -> Evaluator m HiValue
+evalFuncTernary :: HiMonad m => HiFun -> HiValue -> HiValue -> HiValue -> Evaluator m HiValue
 evalFuncTernary HiFunIf cond thenBranch elseBranch = do
   eCond <- takeBool cond
   return $ if eCond then thenBranch else elseBranch
 evalFuncTernary _ _ _ _ = throwError HiErrorArityMismatch
 
-stringIndex :: Monad m => T.Text -> [HiValue] -> Evaluator m HiValue
+stringIndex :: HiMonad m => T.Text -> [HiValue] -> Evaluator m HiValue
 stringIndex s [el] = do
   idx <- fromIntegral <$> takeInteger el
   return $ if idx >= 0 && T.compareLength s idx == GT
@@ -132,7 +144,7 @@ stringIndex s [el1, el2] = do
   return $ HiValueString $ T.pack res
 stringIndex _ _ = throwError HiErrorArityMismatch
 
-listIndex :: Monad m => S.Seq HiValue -> [HiValue] -> Evaluator m HiValue
+listIndex :: HiMonad m => S.Seq HiValue -> [HiValue] -> Evaluator m HiValue
 listIndex l [el] = do
   idx <- fromIntegral <$> takeInteger el
   return $ fromMaybe HiValueNull (l S.!? idx)
@@ -141,7 +153,7 @@ listIndex l [el1, el2] = do
   return $ HiValueList $ S.fromList res
 listIndex _ _ = throwError HiErrorArityMismatch
 
-bytesIndex :: Monad m => B.ByteString -> [HiValue] -> Evaluator m HiValue
+bytesIndex :: HiMonad m => B.ByteString -> [HiValue] -> Evaluator m HiValue
 bytesIndex b [el] = do
   idx <- fromIntegral <$> takeInteger el
   return $ maybe HiValueNull (HiValueNumber . toRational . fst)  (B.uncons $ B.drop idx b) -- B.!? :(
@@ -150,7 +162,7 @@ bytesIndex b [el1, el2] = do
   return $ HiValueBytes $ B.pack res
 bytesIndex _ _ = throwError HiErrorArityMismatch
 
-slice :: Monad m => [a] -> HiValue -> HiValue -> Evaluator m [a]
+slice :: HiMonad m => [a] -> HiValue -> HiValue -> Evaluator m [a]
 slice lst HiValueNull r@(HiValueNumber _) = slice lst (HiValueNumber 0) r
 slice lst l@(HiValueNumber _) HiValueNull = slice lst l (HiValueNumber (toRational $ length lst))
 slice lst l@(HiValueNumber _) r@(HiValueNumber _) = do
@@ -164,7 +176,7 @@ slice _ _ _ = throwError HiErrorInvalidArgument
 
 -- ArgTakers
 
-takeNum, takeDivisor :: Monad m => ArgTaker m Rational
+takeNum, takeDivisor :: HiMonad m => ArgTaker m Rational
 takeNum (HiValueNumber x) = return x
 takeNum _ = throwError HiErrorInvalidArgument
 
@@ -172,15 +184,15 @@ takeDivisor val = do
   d <- takeNum val
   if d == 0 then throwError HiErrorDivideByZero else return d
 
-takeBool :: Monad m => ArgTaker m Bool
+takeBool :: HiMonad m => ArgTaker m Bool
 takeBool (HiValueBool b) = return b
 takeBool _ = throwError HiErrorInvalidArgument
 
-takeText :: Monad m => ArgTaker m T.Text
+takeText :: HiMonad m => ArgTaker m T.Text
 takeText (HiValueString t) = return t
 takeText _ = throwError HiErrorInvalidArgument
 
-takeInteger, takeNatural :: Monad m => ArgTaker m Integer
+takeInteger, takeNatural :: HiMonad m => ArgTaker m Integer
 takeInteger val = do
   x <- takeNum val
   if denominator x == 1 then return $ numerator x else throwError HiErrorInvalidArgument
@@ -189,25 +201,25 @@ takeNatural val = do
   x <- takeInteger val
   if x >= 0 then return x else throwError HiErrorInvalidArgument
 
-takeFun :: Monad m => ArgTaker m HiFun
+takeFun :: HiMonad m => ArgTaker m HiFun
 takeFun (HiValueFunction f) = return f
 takeFun _ = throwError HiErrorInvalidArgument
 
-takeList :: Monad m => ArgTaker m (S.Seq HiValue)
+takeList :: HiMonad m => ArgTaker m (S.Seq HiValue)
 takeList (HiValueList l) = return l
 takeList _ = throwError HiErrorInvalidArgument
 
-takeWord8List :: Monad m => ArgTaker m [Word8]
+takeWord8List :: HiMonad m => ArgTaker m [Word8]
 takeWord8List val = do
   l <- takeList val
   mapM validate (toList l) where
-    validate :: Monad m => ArgTaker m Word8
+    validate :: HiMonad m => ArgTaker m Word8
     validate (HiValueNumber x) = 
       if x >= 0 && x <= 255 && denominator x == 1 
       then return $ fromInteger $ numerator x
       else throwError HiErrorInvalidArgument
     validate _ = throwError HiErrorInvalidArgument
 
-takeBinary :: Monad m => ArgTaker m B.ByteString
+takeBinary :: HiMonad m => ArgTaker m B.ByteString
 takeBinary (HiValueBytes b) = return b
 takeBinary _ = throwError HiErrorInvalidArgument
