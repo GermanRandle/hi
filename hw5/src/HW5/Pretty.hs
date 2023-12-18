@@ -2,12 +2,15 @@ module HW5.Pretty
   ( prettyValue
   ) where
 
+import qualified Data.ByteString as B
 import Data.Char (toLower)
 import Data.Foldable (toList)
 import Data.Ratio ((%), denominator, numerator)
 import Data.Scientific (fromRationalRepetendUnlimited, toRealFloat)
 import qualified Data.Sequence as S
+import Data.Word (Word8)
 import HW5.Base (HiValue (..), funName)
+import Numeric (showHex)
 import Prettyprinter (Doc, (<+>), comma, encloseSep, lbracket, pretty, rbracket, slash, space, viaShow)
 import Prettyprinter.Render.Terminal (AnsiStyle)
 
@@ -18,6 +21,7 @@ prettyValue (HiValueBool b) = pretty $ map toLower (show b)
 prettyValue HiValueNull = pretty "null"
 prettyValue (HiValueString s) = viaShow s
 prettyValue (HiValueList l) = prettyValueList l
+prettyValue (HiValueBytes b) = prettyValueBytes b
 
 prettyValueNumber :: Integer -> Integer -> Doc AnsiStyle
 prettyValueNumber n d
@@ -43,3 +47,12 @@ prettyValueNumber n d
 prettyValueList :: S.Seq HiValue -> Doc AnsiStyle
 prettyValueList S.Empty = pretty "[]"
 prettyValueList l = encloseSep (lbracket <> space) (space <> rbracket) (comma <> space) (map prettyValue (toList l))
+
+-- special case for empty? e.g. if empty B.unpack b then ...
+prettyValueBytes :: B.ByteString -> Doc AnsiStyle
+prettyValueBytes b = encloseSep (lbracket <> grid <> space) (space <> grid <> rbracket) space (map prettyHex (B.unpack b)) where
+  grid :: Doc AnsiStyle
+  grid = pretty "#"
+
+  prettyHex :: Word8 -> Doc AnsiStyle
+  prettyHex w = pretty $ (if w < 16 then "0" else "") ++ showHex w ""

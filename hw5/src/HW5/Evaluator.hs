@@ -4,11 +4,15 @@ module HW5.Evaluator
 
 import Control.Monad.Except (ExceptT, foldM, throwError)
 import Control.Monad.Trans.Except (runExceptT)
+import qualified Data.ByteString as B
 import Data.Foldable (toList)
+import Data.Maybe (fromMaybe)
 import Data.Ratio (denominator, numerator)
 import Data.Semigroup (stimes)
 import qualified Data.Sequence as S
 import qualified Data.Text as T
+import Data.Text.Encoding (decodeUtf8', encodeUtf8)
+import Data.Word (Word8)
 import HW5.Base (HiError (..), HiExpr (..), HiFun(..), HiValue (..))
 
 type ArgTaker m a = HiValue -> Evaluator m a
@@ -31,6 +35,7 @@ evalApply object args = do
     (HiValueFunction f) -> evalFunc f eArgs
     (HiValueString s) -> stringIndex s eArgs
     (HiValueList l) -> listIndex l eArgs
+    (HiValueBytes b) -> bytesIndex b eArgs
     _ -> throwError HiErrorInvalidFunction
 
 evalFunc :: Monad m => HiFun -> [HiValue] -> Evaluator m HiValue
@@ -54,6 +59,10 @@ evalFuncUnary HiFunNot = evalFuncUnary' takeBool not HiValueBool
 evalFuncUnary HiFunToUpper = evalFuncUnary' takeText T.toUpper HiValueString
 evalFuncUnary HiFunToLower = evalFuncUnary' takeText T.toLower HiValueString
 evalFuncUnary HiFunTrim = evalFuncUnary' takeText T.strip HiValueString
+evalFuncUnary HiFunPackBytes = evalFuncUnary' takeWord8List B.pack HiValueBytes
+evalFuncUnary HiFunUnpackBytes = evalFuncUnary' takeBinary (S.fromList . map (HiValueNumber . toRational) . B.unpack) HiValueList
+evalFuncUnary HiFunEncodeUtf8 = evalFuncUnary' takeText encodeUtf8 HiValueBytes
+evalFuncUnary HiFunDecodeUtf8 = evalFuncUnary' takeBinary (either (const HiValueNull) HiValueString . decodeUtf8') id
 evalFuncUnary f = evalFuncUnaryPolymorphic f
 
 evalFuncUnaryPolymorphic HiFunLength s@(HiValueString _) = evalFuncUnary' takeText (toRational . T.length) HiValueNumber s
@@ -82,11 +91,13 @@ evalFuncBinary f = evalFuncBinaryPolymorphic f
 
 evalFuncBinaryPolymorphic HiFunAdd a@(HiValueNumber _) = evalFuncBinary' takeNum takeNum (+) HiValueNumber a
 evalFuncBinaryPolymorphic HiFunAdd a@(HiValueString _) = evalFuncBinary' takeText takeText (<>) HiValueString a
+evalFuncBinaryPolymorphic HiFunAdd a@(HiValueBytes _) = evalFuncBinary' takeBinary takeBinary B.append HiValueBytes a
 evalFuncBinaryPolymorphic HiFunAdd a = evalFuncBinary' takeList takeList (S.><) HiValueList a
 evalFuncBinaryPolymorphic HiFunDiv a@(HiValueNumber _) = evalFuncBinary' takeNum takeDivisor (/) HiValueNumber a
 evalFuncBinaryPolymorphic HiFunDiv a = evalFuncBinary' takeText takeText (\ x y -> T.snoc x '/' <> y) HiValueString a
 evalFuncBinaryPolymorphic HiFunMul a@(HiValueNumber _) = evalFuncBinary' takeNum takeNum (*) HiValueNumber a
 evalFuncBinaryPolymorphic HiFunMul a@(HiValueString _) = evalFuncBinary' takeText takeNatural (flip stimes) HiValueString a
+evalFuncBinaryPolymorphic HiFunMul a@(HiValueBytes _) = evalFuncBinary' takeBinary takeNatural (flip stimes) HiValueBytes a
 evalFuncBinaryPolymorphic HiFunMul a = evalFuncBinary' takeList takeNatural (flip stimes) HiValueList a
 evalFuncBinaryPolymorphic _ _ = do const (throwError HiErrorArityMismatch)
 
@@ -116,13 +127,20 @@ stringIndex _ _ = throwError HiErrorArityMismatch
 listIndex :: Monad m => S.Seq HiValue -> [HiValue] -> Evaluator m HiValue
 listIndex l [el] = do
   idx <- fromIntegral <$> takeInteger el
-  return $ case l S.!? idx of
-    Just x -> x
-    Nothing -> HiValueNull
+  return $ fromMaybe HiValueNull (l S.!? idx)
 listIndex l [el1, el2] = do
   res <- slice (toList l) el1 el2
   return $ HiValueList $ S.fromList res
 listIndex _ _ = throwError HiErrorArityMismatch
+
+bytesIndex :: Monad m => B.ByteString -> [HiValue] -> Evaluator m HiValue
+bytesIndex b [el] = do
+  idx <- fromIntegral <$> takeInteger el
+  return $ maybe HiValueNull (HiValueNumber . toRational)  (b B.!? idx)
+bytesIndex b [el1, el2] = do
+  res <- slice (B.unpack b) el1 el2
+  return $ HiValueBytes $ B.pack res
+bytesIndex _ _ = throwError HiErrorArityMismatch
 
 slice :: Monad m => [a] -> HiValue -> HiValue -> Evaluator m [a]
 slice lst HiValueNull r@(HiValueNumber _) = slice lst (HiValueNumber 0) r
@@ -170,3 +188,18 @@ takeFun _ = throwError HiErrorInvalidArgument
 takeList :: Monad m => ArgTaker m (S.Seq HiValue)
 takeList (HiValueList l) = return l
 takeList _ = throwError HiErrorInvalidArgument
+
+takeWord8List :: Monad m => ArgTaker m [Word8]
+takeWord8List val = do
+  l <- takeList val
+  mapM validate (toList l) where
+    validate :: Monad m => ArgTaker m Word8
+    validate (HiValueNumber x) = 
+      if x >= 0 && x <= 255 && denominator x == 1 
+      then return $ fromInteger $ numerator x
+      else throwError HiErrorInvalidArgument
+    validate _ = throwError HiErrorInvalidArgument
+
+takeBinary :: Monad m => ArgTaker m B.ByteString
+takeBinary (HiValueBytes b) = return b
+takeBinary _ = throwError HiErrorInvalidArgument

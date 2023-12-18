@@ -6,6 +6,7 @@ module HW5.Base
   , funName
   ) where
 
+import qualified Data.ByteString as B
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 
@@ -32,6 +33,14 @@ data HiFun =
   | HiFunList
   | HiFunRange
   | HiFunFold
+  | HiFunPackBytes
+  | HiFunUnpackBytes
+  | HiFunEncodeUtf8
+  | HiFunDecodeUtf8
+  | HiFunZip
+  | HiFunUnzip
+  | HiFunSerialise
+  | HiFunDeserialise
   deriving (Show, Eq, Ord)
 
 data HiValue =
@@ -41,6 +50,7 @@ data HiValue =
   | HiValueString T.Text
   | HiValueFunction HiFun
   | HiValueList (S.Seq HiValue)
+  | HiValueBytes B.ByteString
   deriving (Show, Eq, Ord)
 
 data HiExpr =
@@ -78,3 +88,11 @@ funName HiFunTrim = "trim"
 funName HiFunList = "list"
 funName HiFunRange = "range"
 funName HiFunFold = "fold"
+funName HiFunPackBytes = "pack-bytes"
+funName HiFunUnpackBytes = "unpack-bytes"
+funName HiFunEncodeUtf8 = "encode-utf8"
+funName HiFunDecodeUtf8 = "decode-utf8"
+funName HiFunZip = "zip"
+funName HiFunUnzip = "unzip"
+funName HiFunSerialise = "serialise"
+funName HiFunDeserialise = "deserialise"

@@ -5,12 +5,14 @@ module HW5.Parser
 import Control.Applicative (optional, many)
 import Control.Applicative.Combinators (between, sepBy)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
+import qualified Data.ByteString as B
 import Data.Char (toLower)
 import qualified Data.Text as T
 import Data.Void (Void)
+import Data.Word (Word8)
 import HW5.Base (HiExpr (..), HiValue (..), HiFun(..), funName)
-import Text.Megaparsec (MonadParsec (eof), Parsec, (<|>), manyTill, notFollowedBy, runParser, try)
-import Text.Megaparsec.Char (char, space)
+import Text.Megaparsec (MonadParsec (eof), Parsec, (<|>), manyTill, notFollowedBy, runParser, sepEndBy, try)
+import Text.Megaparsec.Char (char, hexDigitChar, space)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec.Error (ParseErrorBundle)
 
@@ -32,7 +34,7 @@ exprTerm = do
 
 exprTerm' :: Parser HiExpr
 exprTerm' = do
-  object <- (HiExprValue <$> value) <|> listLiterals
+  object <- (HiExprValue <$> value) <|> listLiteral
   args <- many functionArgs
   return $ foldl HiExprApply object args
 
@@ -49,21 +51,34 @@ numeric :: Parser HiValue
 numeric = lexeme $ HiValueNumber . toRational <$> L.signed space L.scientific
 
 boolean :: Parser HiValue
-boolean = lexeme $ support False <|> support True where
+boolean = support False <|> support True where
   support :: Bool -> Parser HiValue
   support b = HiValueBool . const b <$> takeToken (map toLower (show b))
 
 nullKeyword :: Parser HiValue
-nullKeyword = lexeme $ HiValueNull <$ takeToken "null" -- excessive lexemes?
+nullKeyword = HiValueNull <$ takeToken "null"
 
 stringLiteral :: Parser HiValue
 stringLiteral = lexeme $ HiValueString . T.pack <$> (char '"' >> manyTill L.charLiteral (char '"'))
 
-listLiterals :: Parser HiExpr
-listLiterals = HiExprApply (HiExprValue $ HiValueFunction HiFunList) <$> (takeToken "[" *> (expr `sepBy` takeToken ",") <* takeToken "]")
+listLiteral :: Parser HiExpr
+listLiteral = HiExprApply (HiExprValue $ HiValueFunction HiFunList) <$> (takeToken "[" *> (expr `sepBy` takeToken ",") <* takeToken "]")
+
+byteArrayLiteral :: Parser HiValue
+byteArrayLiteral = HiValueBytes . B.pack <$> (takeToken "[#" *> lexeme (hex2 `sepEndBy` space) <* takeToken "#]") where
+  hex2 :: Parser Word8
+  hex2 = do
+    first <- hexDigitChar
+    second <- hexDigitChar
+    return $ fromInteger $ read $ "0x" ++ [first, second]
 
 value :: Parser HiValue
-value = functionName <|> numeric <|> boolean <|> nullKeyword <|> stringLiteral
+value = functionName 
+    <|> numeric 
+    <|> boolean 
+    <|> nullKeyword 
+    <|> stringLiteral 
+    <|> byteArrayLiteral
 
 functionName :: Parser HiValue
 functionName = lexeme $ 
@@ -88,7 +103,15 @@ functionName = lexeme $
   <|> support HiFunTrim
   <|> support HiFunList
   <|> support HiFunRange
-  <|> support HiFunFold where
+  <|> support HiFunFold 
+  <|> support HiFunPackBytes
+  <|> support HiFunUnpackBytes
+  <|> support HiFunEncodeUtf8
+  <|> support HiFunDecodeUtf8
+  <|> support HiFunZip
+  <|> support HiFunUnzip
+  <|> support HiFunSerialise
+  <|> support HiFunDeserialise where
     support :: HiFun -> Parser HiValue
     support f = HiValueFunction . const f <$> takeToken (funName f)
 
