@@ -45,6 +45,7 @@ library:
     - scientific
     - serialise
     - text
+    - time
     - transformers
     - zlib
 

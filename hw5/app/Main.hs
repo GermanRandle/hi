@@ -31,4 +31,4 @@ main = runInputT defaultSettings loop
           loop
 
     permissons :: Set HiPermission
-    permissons = fromList [AllowRead, AllowWrite]
+    permissons = fromList [AllowRead, AllowWrite, AllowTime]

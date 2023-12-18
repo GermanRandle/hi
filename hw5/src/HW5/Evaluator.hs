@@ -16,8 +16,10 @@ import Data.Semigroup (stimes)
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
+import Data.Time.Clock as C
 import Data.Word (Word8)
 import HW5.Base (HiAction (..), HiError (..), HiExpr (..), HiFun(..), HiMonad, HiValue (..), runAction)
+import Text.Read (readMaybe)
 
 type ArgTaker m a = HiValue -> Evaluator m a
 type BinaryFunction a b c = a -> b -> c
@@ -82,6 +84,7 @@ evalFuncUnary HiFunDeserialise = evalFuncUnary' takeBinary (fromRight HiValueNul
 evalFuncUnary HiFunRead = evalFuncUnary' takeText T.unpack (HiValueAction . HiActionRead)
 evalFuncUnary HiFunMkDir = evalFuncUnary' takeText T.unpack (HiValueAction . HiActionMkDir)
 evalFuncUnary HiFunChDir = evalFuncUnary' takeText T.unpack (HiValueAction . HiActionChDir)
+evalFuncUnary HiFunParseTime = evalFuncUnary' takeText (maybe HiValueNull HiValueTime . (readMaybe . T.unpack)) id
 evalFuncUnary f = evalFuncUnaryPolymorphic f
 
 evalFuncUnaryPolymorphic HiFunLength s@(HiValueString _) = evalFuncUnary' takeText (toRational . T.length) HiValueNumber s
@@ -96,7 +99,6 @@ evalFuncUnary' argTaker f resWrapper a = do
   return $ resWrapper $ f ea
 
 evalFuncBinary, evalFuncBinaryPolymorphic :: HiMonad m => HiFun -> HiValue -> HiValue -> Evaluator m HiValue
-evalFuncBinary HiFunSub = evalFuncBinary' takeNum takeNum (-) HiValueNumber
 evalFuncBinary HiFunAnd = evalFuncBinary' takeBool takeBool (&&) HiValueBool
 evalFuncBinary HiFunOr = evalFuncBinary' takeBool takeBool (||) HiValueBool
 evalFuncBinary HiFunLessThan = evalFuncBinary' return return  (<) HiValueBool
@@ -112,6 +114,7 @@ evalFuncBinary f = evalFuncBinaryPolymorphic f
 evalFuncBinaryPolymorphic HiFunAdd a@(HiValueNumber _) = evalFuncBinary' takeNum takeNum (+) HiValueNumber a
 evalFuncBinaryPolymorphic HiFunAdd a@(HiValueString _) = evalFuncBinary' takeText takeText (<>) HiValueString a
 evalFuncBinaryPolymorphic HiFunAdd a@(HiValueBytes _) = evalFuncBinary' takeBinary takeBinary B.append HiValueBytes a
+evalFuncBinaryPolymorphic HiFunAdd a@(HiValueTime _) = evalFuncBinary' takeTime takeNatural (\t diff -> C.addUTCTime (fromInteger diff) t) HiValueTime a
 evalFuncBinaryPolymorphic HiFunAdd a = evalFuncBinary' takeList takeList (S.><) HiValueList a
 evalFuncBinaryPolymorphic HiFunDiv a@(HiValueNumber _) = evalFuncBinary' takeNum takeDivisor (/) HiValueNumber a
 evalFuncBinaryPolymorphic HiFunDiv a = evalFuncBinary' takeText takeText (\ x y -> T.snoc x '/' <> y) HiValueString a
@@ -119,6 +122,8 @@ evalFuncBinaryPolymorphic HiFunMul a@(HiValueNumber _) = evalFuncBinary' takeNum
 evalFuncBinaryPolymorphic HiFunMul a@(HiValueString _) = evalFuncBinary' takeText takeNatural (flip stimes) HiValueString a
 evalFuncBinaryPolymorphic HiFunMul a@(HiValueBytes _) = evalFuncBinary' takeBinary takeNatural (flip stimes) HiValueBytes a
 evalFuncBinaryPolymorphic HiFunMul a = evalFuncBinary' takeList takeNatural (flip stimes) HiValueList a
+evalFuncBinaryPolymorphic HiFunSub a@(HiValueNumber _) = evalFuncBinary' takeNum takeNum (-) HiValueNumber a
+evalFuncBinaryPolymorphic HiFunSub a = evalFuncBinary' takeTime takeTime (\x y -> toRational (C.diffUTCTime x y)) HiValueNumber a
 evalFuncBinaryPolymorphic _ _ = do const (throwError HiErrorArityMismatch)
 
 evalFuncBinary' :: HiMonad m => ArgTaker m a -> ArgTaker m b -> BinaryFunction a b c -> (c -> HiValue) -> HiValue -> HiValue -> Evaluator m HiValue
@@ -223,3 +228,7 @@ takeWord8List val = do
 takeBinary :: HiMonad m => ArgTaker m B.ByteString
 takeBinary (HiValueBytes b) = return b
 takeBinary _ = throwError HiErrorInvalidArgument
+
+takeTime :: HiMonad m => ArgTaker m C.UTCTime
+takeTime (HiValueTime t) = return t
+takeTime _ = throwError HiErrorInvalidArgument

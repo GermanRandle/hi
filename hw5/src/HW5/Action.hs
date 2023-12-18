@@ -10,12 +10,14 @@ import qualified Data.Sequence as S
 import Data.Set (Set, member)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8')
+import Data.Time.Clock as C
 import HW5.Base (HiAction (..), HiMonad, HiValue (..), runAction)
 import System.Directory (createDirectory, doesFileExist, getCurrentDirectory, listDirectory, setCurrentDirectory)
 
 data HiPermission =
     AllowRead
   | AllowWrite
+  | AllowTime
   deriving (Show, Eq, Ord)
 
 newtype PermissionException =
@@ -52,6 +54,10 @@ instance HiMonad HIO where
   runAction (HiActionMkDir path) = HIO $ \perm -> do
     checkPerm perm AllowWrite
     HiValueNull <$ createDirectory path
+  runAction HiActionNow = HIO $ \perm -> do
+    checkPerm perm AllowTime
+    HiValueTime <$> C.getCurrentTime
+
 
 instance Monad HIO where
   m >>= f = HIO $ \perm -> runHIO m perm >>= \res -> runHIO (f res) perm

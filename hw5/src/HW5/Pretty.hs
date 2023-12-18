@@ -8,10 +8,11 @@ import Data.Foldable (toList)
 import Data.Ratio ((%), denominator, numerator)
 import Data.Scientific (fromRationalRepetendUnlimited, toRealFloat)
 import qualified Data.Sequence as S
+import Data.Time.Clock as C
 import Data.Word (Word8)
 import HW5.Base (HiAction (..), HiValue (..), funName)
 import Numeric (showHex)
-import Prettyprinter (Doc, (<+>), comma, encloseSep, lbracket, lparen, pretty, rbracket, rparen, slash, space, viaShow)
+import Prettyprinter (Doc, (<+>), comma, dquotes, encloseSep, lbracket, lparen, pretty, rbracket, rparen, slash, space, viaShow)
 import Prettyprinter.Render.Terminal (AnsiStyle)
 
 prettyValue :: HiValue -> Doc AnsiStyle
@@ -23,6 +24,7 @@ prettyValue (HiValueString s) = viaShow s
 prettyValue (HiValueList l) = prettyValueList l
 prettyValue (HiValueBytes b) = prettyValueBytes b
 prettyValue (HiValueAction a) = prettyValueAction a
+prettyValue (HiValueTime t) = prettyValueTime t
 
 prettyValueNumber :: Integer -> Integer -> Doc AnsiStyle
 prettyValueNumber n d
@@ -64,3 +66,7 @@ prettyValueAction (HiActionWrite f t) = pretty "write" <> lparen <> viaShow f <>
 prettyValueAction (HiActionMkDir d) = pretty "mkdir" <> lparen <> viaShow d <> rparen
 prettyValueAction (HiActionChDir d) = pretty "cd" <> lparen <> viaShow d <> rparen
 prettyValueAction HiActionCwd = pretty "cwd"
+prettyValueAction HiActionNow = pretty "now"
+
+prettyValueTime :: C.UTCTime -> Doc AnsiStyle
+prettyValueTime t = pretty "parse-time" <> lparen <> dquotes (viaShow t) <> rparen

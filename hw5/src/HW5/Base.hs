@@ -16,6 +16,7 @@ import Codec.Serialise (Serialise)
 import qualified Data.ByteString as B
 import qualified Data.Sequence as S
 import qualified Data.Text as T
+import Data.Time.Clock as C
 import GHC.Generics (Generic)
 
 data HiFun =
@@ -53,6 +54,7 @@ data HiFun =
   | HiFunWrite
   | HiFunMkDir
   | HiFunChDir
+  | HiFunParseTime
   deriving (Show, Eq, Ord, Generic, Serialise)
 
 data HiValue =
@@ -64,6 +66,7 @@ data HiValue =
   | HiValueList (S.Seq HiValue)
   | HiValueBytes B.ByteString
   | HiValueAction HiAction
+  | HiValueTime C.UTCTime
   deriving (Show, Eq, Ord, Generic, Serialise)
 
 data HiExpr =
@@ -85,6 +88,7 @@ data HiAction =
   | HiActionMkDir FilePath
   | HiActionChDir FilePath
   | HiActionCwd
+  | HiActionNow
   deriving (Show, Eq, Ord, Generic, Serialise)
 
 class Monad m => HiMonad m where
@@ -125,3 +129,4 @@ funName HiFunRead = "read"
 funName HiFunWrite = "write"
 funName HiFunMkDir = "mkdir"
 funName HiFunChDir = "cd"
+funName HiFunParseTime = "parse-time"

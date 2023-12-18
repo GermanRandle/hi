@@ -67,6 +67,9 @@ nullKeyword = HiValueNull <$ takeToken "null"
 cwdKeyword :: Parser HiValue
 cwdKeyword = HiValueAction HiActionCwd <$ takeToken "cwd"
 
+nowKeyword :: Parser HiValue
+nowKeyword = HiValueAction HiActionNow <$ takeToken "now"
+
 stringLiteral :: Parser HiValue
 stringLiteral = lexeme $ HiValueString . T.pack <$> (char '"' >> manyTill L.charLiteral (char '"'))
 
@@ -89,6 +92,7 @@ value = functionName
     <|> stringLiteral 
     <|> byteArrayLiteral
     <|> cwdKeyword
+    <|> nowKeyword
 
 functionName :: Parser HiValue
 functionName = lexeme $ 
@@ -125,7 +129,8 @@ functionName = lexeme $
   <|> support HiFunRead
   <|> support HiFunWrite
   <|> support HiFunMkDir
-  <|> support HiFunChDir where
+  <|> support HiFunChDir
+  <|> support HiFunParseTime where
     support :: HiFun -> Parser HiValue
     support f = HiValueFunction . const f <$> takeToken (funName f)
 
