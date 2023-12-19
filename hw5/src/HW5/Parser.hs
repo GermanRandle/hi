@@ -30,8 +30,11 @@ inParentheses inner = takeToken "(" *> inner <* takeToken ")"
 exprTerm :: Parser HiExpr
 exprTerm = do
   e <- exprTerm'
-  runs <- many $ takeToken "!"
-  return $ foldl (\ee _ -> HiExprRun ee) e runs
+  runs <- many postExpr -- TODO: DOT ACCESS
+  return $ foldl (\ee f -> f ee) e runs
+
+postExpr :: Parser (HiExpr -> HiExpr)
+postExpr = (HiExprRun <$ takeToken "!") <|> ((\e -> flip HiExprApply [e]) <$> dotAccess)
 
 exprTerm' :: Parser HiExpr
 exprTerm' = do
@@ -41,7 +44,7 @@ exprTerm' = do
 exprTerm'' :: Parser HiExpr
 exprTerm'' = do
   object <- (HiExprValue <$> value) <|> listLiteral <|> dictLiteral
-  args <- many (functionArgs <|> dotAccess)
+  args <- many functionArgs
   return $ foldl HiExprApply object args
 
 lexeme :: Parser p -> Parser p
@@ -151,8 +154,8 @@ functionName = lexeme $
 functionArgs :: Parser [HiExpr]
 functionArgs = inParentheses $ expr `sepBy` takeToken ","
 
-dotAccess :: Parser [HiExpr]
-dotAccess = lexeme $ (: []) . HiExprValue . HiValueString . T.pack <$> (char '.' *> identifier)
+dotAccess :: Parser HiExpr
+dotAccess = lexeme $ HiExprValue . HiValueString . T.pack <$> (char '.' *> identifier)
 
 identifier :: Parser String
 identifier = concat <$> (((:) <$> satisfy isAlpha <*> many (satisfy isAlphaNum)) `sepBy1` char '-')
