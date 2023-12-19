@@ -14,6 +14,7 @@ module HW5.Base
 
 import Codec.Serialise (Serialise)
 import qualified Data.ByteString as B
+import qualified Data.Map as M
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import Data.Time.Clock as C
@@ -57,6 +58,10 @@ data HiFun =
   | HiFunParseTime
   | HiFunRand
   | HiFunEcho
+  | HiFunCount
+  | HiFunKeys
+  | HiFunValues
+  | HiFunInvert
   deriving (Show, Eq, Ord, Generic, Serialise)
 
 data HiValue =
@@ -69,12 +74,14 @@ data HiValue =
   | HiValueBytes B.ByteString
   | HiValueAction HiAction
   | HiValueTime C.UTCTime
+  | HiValueDict (M.Map HiValue HiValue)
   deriving (Show, Eq, Ord, Generic, Serialise)
 
 data HiExpr =
     HiExprValue HiValue
   | HiExprApply HiExpr [HiExpr]
   | HiExprRun HiExpr
+  | HiExprDict [(HiExpr, HiExpr)]
   deriving Show
 
 data HiError =
@@ -136,3 +143,7 @@ funName HiFunChDir = "cd"
 funName HiFunParseTime = "parse-time"
 funName HiFunRand = "rand"
 funName HiFunEcho = "echo"
+funName HiFunCount = "count"
+funName HiFunKeys = "keys"
+funName HiFunValues = "values"
+funName HiFunInvert = "invert"

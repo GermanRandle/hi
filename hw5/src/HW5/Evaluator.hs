@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module HW5.Evaluator
   ( eval
   ) where
@@ -10,6 +12,7 @@ import qualified Data.ByteString as B
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Either (fromRight)
 import Data.Foldable (toList)
+import qualified Data.Map as M
 import Data.Maybe (fromMaybe)
 import Data.Ratio (denominator, numerator)
 import Data.Semigroup (stimes)
@@ -33,6 +36,15 @@ eval' :: HiMonad m => HiExpr -> Evaluator m HiValue
 eval' (HiExprValue x) = return x
 eval' (HiExprApply f args) = evalApply f args
 eval' (HiExprRun r) = evalRun r
+eval' (HiExprDict d) = evalDict d
+
+evalDict :: HiMonad m => [(HiExpr, HiExpr)] -> Evaluator m HiValue
+evalDict l = do
+  el <- mapM (\(a, b) -> do
+    ea <- eval' a
+    eb <- eval' b
+    return (ea, eb)) l
+  return $ HiValueDict $ M.fromList el
 
 evalRun :: HiMonad m => HiExpr -> Evaluator m HiValue
 evalRun expr = do
@@ -52,6 +64,7 @@ evalApply object args = do
         (HiValueString s) -> stringIndex s eArgs
         (HiValueList l) -> listIndex l eArgs
         (HiValueBytes b) -> bytesIndex b eArgs
+        (HiValueDict d) -> dictGet d eArgs
         _ -> throwError HiErrorInvalidFunction
 
 -- for lazy
@@ -98,7 +111,7 @@ evalFuncUnary HiFunToUpper = evalFuncUnary' takeText T.toUpper HiValueString
 evalFuncUnary HiFunToLower = evalFuncUnary' takeText T.toLower HiValueString
 evalFuncUnary HiFunTrim = evalFuncUnary' takeText T.strip HiValueString
 evalFuncUnary HiFunPackBytes = evalFuncUnary' takeWord8List B.pack HiValueBytes
-evalFuncUnary HiFunUnpackBytes = evalFuncUnary' takeBinary (S.fromList . map (HiValueNumber . toRational) . B.unpack) HiValueList
+evalFuncUnary HiFunUnpackBytes = evalFuncUnary' takeBinary (map (HiValueNumber . toRational) . B.unpack) (HiValueList . S.fromList)
 evalFuncUnary HiFunEncodeUtf8 = evalFuncUnary' takeText encodeUtf8 HiValueBytes
 evalFuncUnary HiFunDecodeUtf8 = evalFuncUnary' takeBinary (either (const HiValueNull) HiValueString . decodeUtf8') id
 evalFuncUnary HiFunZip = evalFuncUnary' takeBinary (toStrict . compressWith defaultCompressParams { compressLevel = bestCompression } . fromStrict) HiValueBytes
@@ -110,12 +123,18 @@ evalFuncUnary HiFunMkDir = evalFuncUnary' takeText T.unpack (HiValueAction . HiA
 evalFuncUnary HiFunChDir = evalFuncUnary' takeText T.unpack (HiValueAction . HiActionChDir)
 evalFuncUnary HiFunParseTime = evalFuncUnary' takeText (maybe HiValueNull HiValueTime . (readMaybe . T.unpack)) id
 evalFuncUnary HiFunEcho = evalFuncUnary' takeText HiActionEcho HiValueAction
+evalFuncUnary HiFunKeys = evalFuncUnary' takeDict M.keys (HiValueList . S.fromList)
+evalFuncUnary HiFunValues = evalFuncUnary' takeDict M.elems (HiValueList . S.fromList)
+evalFuncUnary HiFunInvert = evalFuncUnary' takeDict dictInvert HiValueDict
 evalFuncUnary f = evalFuncUnaryPolymorphic f
 
 evalFuncUnaryPolymorphic HiFunLength s@(HiValueString _) = evalFuncUnary' takeText (toRational . T.length) HiValueNumber s
 evalFuncUnaryPolymorphic HiFunLength l = evalFuncUnary' takeList (toRational . S.length) HiValueNumber l
 evalFuncUnaryPolymorphic HiFunReverse s@(HiValueString _) = evalFuncUnary' takeText T.reverse HiValueString s
 evalFuncUnaryPolymorphic HiFunReverse l = evalFuncUnary' takeList S.reverse HiValueList l
+evalFuncUnaryPolymorphic HiFunCount s@(HiValueString _) = evalFuncUnary' takeText (countL (HiValueString . T.singleton) T.unpack) HiValueDict s
+evalFuncUnaryPolymorphic HiFunCount b@(HiValueBytes _) = evalFuncUnary' takeBinary (countL (HiValueNumber . toRational) B.unpack) HiValueDict b
+evalFuncUnaryPolymorphic HiFunCount l = evalFuncUnary' takeList (countL id toList) HiValueDict l
 evalFuncUnaryPolymorphic _ _ = throwError HiErrorArityMismatch
 
 evalFuncUnary' :: HiMonad m => ArgTaker m a -> UnaryFunction a b -> (b -> HiValue) -> HiValue -> Evaluator m HiValue
@@ -197,6 +216,25 @@ slice lst l@(HiValueNumber _) r@(HiValueNumber _) = do
     normalize idx = if idx < 0 then idx + length lst else idx
 slice _ _ _ = throwError HiErrorInvalidArgument
 
+dictGet :: HiMonad m => M.Map HiValue HiValue -> [HiValue] -> Evaluator m HiValue
+dictGet m [k] = do
+  return $ case M.lookup k m of
+    (Just val) -> val
+    Nothing -> HiValueNull
+dictGet _ _ = throwError HiErrorArityMismatch
+
+dictInvert :: M.Map HiValue HiValue -> M.Map HiValue HiValue
+dictInvert m = M.map (HiValueList . S.fromList) (M.fromListWith (++) (map (\(k, v) -> (v, [k])) (M.toList m)))
+
+oone :: Integer
+oone = 1
+
+countL :: Ord b => (b -> HiValue) -> (a -> [b]) -> a -> M.Map HiValue HiValue
+countL keyMapper unpacker l = 
+  let 
+      cnt = M.fromListWith (+) (map (, oone) (unpacker l))
+  in  M.map (HiValueNumber . toRational) (M.mapKeys keyMapper cnt)
+
 -- ArgTakers
 
 takeNum, takeDivisor :: HiMonad m => ArgTaker m Rational
@@ -250,3 +288,9 @@ takeBinary _ = throwError HiErrorInvalidArgument
 takeTime :: HiMonad m => ArgTaker m C.UTCTime
 takeTime (HiValueTime t) = return t
 takeTime _ = throwError HiErrorInvalidArgument
+
+takeDict :: HiMonad m => ArgTaker m (M.Map HiValue HiValue)
+takeDict (HiValueDict d) = return d
+takeDict _ = throwError HiErrorInvalidArgument
+
+

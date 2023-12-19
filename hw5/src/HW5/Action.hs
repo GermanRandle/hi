@@ -30,7 +30,6 @@ instance Exception PermissionException
 newtype HIO a = HIO { runHIO :: Set HiPermission -> IO a }
 
 instance HiMonad HIO where
-  -- runAction :: HiAction -> HIO HiValue
   runAction HiActionCwd = HIO $ \perm -> do
     checkPerm perm AllowRead
     HiValueString . T.pack <$> getCurrentDirectory

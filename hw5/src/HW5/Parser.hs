@@ -3,15 +3,15 @@ module HW5.Parser
   ) where
 
 import Control.Applicative (optional, many)
-import Control.Applicative.Combinators (between, sepBy)
+import Control.Applicative.Combinators (between, sepBy, sepBy1)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import qualified Data.ByteString as B
-import Data.Char (toLower)
+import Data.Char (isAlpha, isAlphaNum, toLower)
 import qualified Data.Text as T
 import Data.Void (Void)
 import Data.Word (Word8)
 import HW5.Base (HiAction (..), HiExpr (..), HiValue (..), HiFun(..), funName)
-import Text.Megaparsec (MonadParsec (eof), Parsec, (<|>), manyTill, notFollowedBy, runParser, sepEndBy, try)
+import Text.Megaparsec (MonadParsec (eof), Parsec, (<|>), manyTill, notFollowedBy, runParser, satisfy, sepEndBy, try)
 import Text.Megaparsec.Char (char, hexDigitChar, space)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec.Error (ParseErrorBundle)
@@ -40,8 +40,8 @@ exprTerm' = do
 
 exprTerm'' :: Parser HiExpr
 exprTerm'' = do
-  object <- (HiExprValue <$> value) <|> listLiteral
-  args <- many functionArgs
+  object <- (HiExprValue <$> value) <|> listLiteral <|> dictLiteral
+  args <- many (functionArgs <|> dotAccess)
   return $ foldl HiExprApply object args
 
 lexeme :: Parser p -> Parser p
@@ -75,6 +75,14 @@ stringLiteral = lexeme $ HiValueString . T.pack <$> (char '"' >> manyTill L.char
 
 listLiteral :: Parser HiExpr
 listLiteral = HiExprApply (HiExprValue $ HiValueFunction HiFunList) <$> (takeToken "[" *> (expr `sepBy` takeToken ",") <* takeToken "]")
+
+dictLiteral :: Parser HiExpr
+dictLiteral = HiExprDict <$> (takeToken "{" *> (entry `sepBy` takeToken ",") <* takeToken "}") where
+  entry :: Parser (HiExpr, HiExpr)
+  entry = do
+    key <- expr <* takeToken ":"
+    val <- expr
+    return (key, val)
 
 byteArrayLiteral :: Parser HiValue
 byteArrayLiteral = HiValueBytes . B.pack <$> (takeToken "[#" *> (hex2 `sepEndBy` space) <* takeToken "#]") where
@@ -132,12 +140,22 @@ functionName = lexeme $
   <|> support HiFunChDir
   <|> support HiFunParseTime
   <|> support HiFunRand
-  <|> support HiFunEcho where
+  <|> support HiFunEcho
+  <|> support HiFunCount
+  <|> support HiFunValues
+  <|> support HiFunKeys
+  <|> support HiFunInvert where
     support :: HiFun -> Parser HiValue
     support f = HiValueFunction . const f <$> takeToken (funName f)
 
 functionArgs :: Parser [HiExpr]
 functionArgs = inParentheses $ expr `sepBy` takeToken ","
+
+dotAccess :: Parser [HiExpr]
+dotAccess = lexeme $ (: []) . HiExprValue . HiValueString . T.pack <$> (char '.' *> identifier)
+
+identifier :: Parser String
+identifier = concat <$> (((:) <$> satisfy isAlpha <*> many (satisfy isAlphaNum)) `sepBy1` char '-')
 
 operatorTable :: [[Operator Parser HiExpr]]
 operatorTable = 

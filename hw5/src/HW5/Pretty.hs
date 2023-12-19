@@ -5,6 +5,7 @@ module HW5.Pretty
 import qualified Data.ByteString as B
 import Data.Char (toLower)
 import Data.Foldable (toList)
+import qualified Data.Map as M
 import Data.Ratio ((%), denominator, numerator)
 import Data.Scientific (fromRationalRepetendUnlimited, toRealFloat)
 import qualified Data.Sequence as S
@@ -12,7 +13,7 @@ import Data.Time.Clock as C
 import Data.Word (Word8)
 import HW5.Base (HiAction (..), HiValue (..), funName)
 import Numeric (showHex)
-import Prettyprinter (Doc, (<+>), comma, dquotes, encloseSep, lbracket, lparen, pretty, rbracket, rparen, slash, space, viaShow)
+import Prettyprinter (Doc, (<+>), colon, comma, dquotes, encloseSep, lbracket, lbrace, lparen, pretty, rbracket, rbrace, rparen, slash, space, viaShow)
 import Prettyprinter.Render.Terminal (AnsiStyle)
 
 prettyValue :: HiValue -> Doc AnsiStyle
@@ -25,6 +26,7 @@ prettyValue (HiValueList l) = prettyValueList l
 prettyValue (HiValueBytes b) = prettyValueBytes b
 prettyValue (HiValueAction a) = prettyValueAction a
 prettyValue (HiValueTime t) = prettyValueTime t
+prettyValue (HiValueDict d) = prettyValueDict d
 
 prettyValueNumber :: Integer -> Integer -> Doc AnsiStyle
 prettyValueNumber n d
@@ -49,6 +51,7 @@ prettyValueNumber n d
 
 prettyValueList :: S.Seq HiValue -> Doc AnsiStyle
 prettyValueList S.Empty = pretty "[]"
+prettyValueList (x S.:<| S.Empty) = pretty "[" <> prettyValue x <> pretty "]"
 prettyValueList l = encloseSep (lbracket <> space) (space <> rbracket) (comma <> space) (map prettyValue (toList l))
 
 -- special case for empty? e.g. if empty B.unpack b then ...
@@ -71,4 +74,10 @@ prettyValueAction (HiActionRand l r) = pretty "rand" <> lparen <+> viaShow l <> 
 prettyValueAction (HiActionEcho t) = pretty "echo" <> lparen <> viaShow t <> rparen
 
 prettyValueTime :: C.UTCTime -> Doc AnsiStyle
-prettyValueTime t = pretty "parse-time" <> lparen <> dquotes (viaShow t) <> rparen
+prettyValueTime t = pretty "parse-time" <> lparen <> dquotes (viaShow t) <> rparen -- TODO: parens
+
+prettyValueDict :: M.Map HiValue HiValue -> Doc AnsiStyle -- TODO: what if empty?
+prettyValueDict d = encloseSep (lbrace <> space) (space <> rbrace) (comma <> space) (map prettyValueEntry (M.assocs d))
+
+prettyValueEntry :: (HiValue, HiValue) -> Doc AnsiStyle
+prettyValueEntry (k, v) = prettyValue k <> colon <> space <> prettyValue v
