@@ -30,11 +30,13 @@ inParentheses inner = takeToken "(" *> inner <* takeToken ")"
 exprTerm :: Parser HiExpr
 exprTerm = do
   e <- exprTerm'
-  runs <- many postExpr
-  return $ foldl (\ee f -> f ee) e runs
+  postExprs <- many postExpr
+  return $ foldl (\ee f -> f ee) e postExprs
 
 postExpr :: Parser (HiExpr -> HiExpr)
-postExpr = (HiExprRun <$ takeToken "!") <|> ((\e -> flip HiExprApply [e]) <$> dotAccess) <|> (flip HiExprApply <$> functionArgs)
+postExpr = (HiExprRun <$ takeToken "!")
+       <|> (flip HiExprApply . (: []) <$> dotAccess)
+       <|> (flip HiExprApply <$> functionArgs)
 
 exprTerm' :: Parser HiExpr
 exprTerm' = do
@@ -42,10 +44,7 @@ exprTerm' = do
   maybe exprTerm'' return w
 
 exprTerm'' :: Parser HiExpr
-exprTerm'' = do
-  object <- (HiExprValue <$> value) <|> listLiteral <|> dictLiteral
-  args <- many functionArgs -- excess?
-  return $ foldl HiExprApply object args
+exprTerm'' = do (HiExprValue <$> value) <|> listLiteral <|> dictLiteral
 
 lexeme :: Parser p -> Parser p
 lexeme = L.lexeme space

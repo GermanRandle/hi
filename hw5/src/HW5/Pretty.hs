@@ -51,7 +51,7 @@ prettyNumber n d
 
 prettySeq :: S.Seq HiValue -> Doc AnsiStyle
 prettySeq S.Empty = pretty "[]"
-prettySeq (x S.:<| S.Empty) = pretty "[" <> prettyValue x <> pretty "]"
+prettySeq (x S.:<| S.Empty) = brackets $ prettyValue x
 prettySeq l = encloseSep (lbracket <> space) (space <> rbracket) (comma <> space) (map prettyValue (toList l))
 
 prettyBytes :: B.ByteString -> Doc AnsiStyle
