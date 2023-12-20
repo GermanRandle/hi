@@ -66,7 +66,7 @@ instance Monad HIO where
   m >>= f = HIO $ \perm -> runHIO m perm >>= \res -> runHIO (f res) perm
 
 instance Applicative HIO where
-  pure val = HIO $ const (do return val)
+  pure val = HIO $ const $ return val
   ma <*> mb = HIO $ \perm -> runHIO ma perm <*> runHIO mb perm
 
 instance Functor HIO where
