@@ -38,6 +38,20 @@ eval' (HiExprApply f args) = evalApply f args
 eval' (HiExprRun r) = evalRun r
 eval' (HiExprDict d) = evalDict d
 
+evalApply :: HiMonad m => HiExpr -> [HiExpr] -> Evaluator m HiValue
+evalApply object args = do
+  eObject <- eval' object
+  case eObject of
+    (HiValueFunction f) -> evalFunc f args
+    _ -> do
+      eArgs <- mapM eval' args
+      case eObject of
+        (HiValueString s) -> stringIndex s eArgs
+        (HiValueList l) -> listIndex l eArgs
+        (HiValueBytes b) -> bytesIndex b eArgs
+        (HiValueDict d) -> dictGet d eArgs
+        _ -> throwError HiErrorInvalidFunction
+
 evalDict :: HiMonad m => [(HiExpr, HiExpr)] -> Evaluator m HiValue
 evalDict l = do
   el <- mapM (\(a, b) -> do
@@ -53,25 +67,9 @@ evalRun expr = do
     (HiValueAction action) -> lift $ runAction action
     _ -> throwError HiErrorInvalidArgument
 
-evalApply :: HiMonad m => HiExpr -> [HiExpr] -> Evaluator m HiValue
-evalApply object args = do
-  eObject <- eval' object
-  case eObject of
-    (HiValueFunction f) -> evalFunc f args
-    _ -> do
-      eArgs <- mapM eval' args
-      case eObject of
-        (HiValueString s) -> stringIndex s eArgs
-        (HiValueList l) -> listIndex l eArgs
-        (HiValueBytes b) -> bytesIndex b eArgs
-        (HiValueDict d) -> dictGet d eArgs
-        _ -> throwError HiErrorInvalidFunction
-
--- for lazy
 evalFunc :: HiMonad m => HiFun -> [HiExpr] -> Evaluator m HiValue
 evalFunc HiFunIf [cond, thenBranch, elseBranch] = do
-  dCond <- eval' cond
-  eCond <- takeBool dCond
+  eCond <- eval' cond >>= takeBool
   if eCond then eval' thenBranch else eval' elseBranch
 evalFunc HiFunIf _ = throwError HiErrorArityMismatch
 evalFunc HiFunAnd [a, b] = do
@@ -88,22 +86,20 @@ evalFunc HiFunOr [a, b] = do
     res -> return res
 evalFunc f args = do
   eArgs <- mapM eval' args
-  evalFunc' f eArgs
+  evalFuncNotLazy f eArgs
 
-evalFunc' :: HiMonad m => HiFun -> [HiValue] -> Evaluator m HiValue
-evalFunc' HiFunList l = return $ HiValueList $ S.fromList l
-evalFunc' HiFunFold args = do
-  case args of
-    [f, l] -> do
-      ef <- takeFun f
-      el <- takeList l
-      case el of
-        S.Empty -> return HiValueNull
-        (h S.:<| t) -> foldM (evalFuncBinary ef) h t
-    _ -> throwError HiErrorArityMismatch
-evalFunc' f [a] = evalFuncUnary f a
-evalFunc' f [a, b] = evalFuncBinary f a b
-evalFunc' _ _ = throwError HiErrorArityMismatch
+evalFuncNotLazy :: HiMonad m => HiFun -> [HiValue] -> Evaluator m HiValue
+evalFuncNotLazy HiFunList l = return $ HiValueList $ S.fromList l
+evalFuncNotLazy HiFunFold [f, l] = do
+  ef <- takeFun f
+  el <- takeList l
+  case el of
+    S.Empty -> return HiValueNull
+    (h S.:<| t) -> foldM (evalFuncBinary ef) h t
+evalFuncNotLazy HiFunFold _ = throwError HiErrorArityMismatch
+evalFuncNotLazy f [a] = evalFuncUnary f a
+evalFuncNotLazy f [a, b] = evalFuncBinary f a b
+evalFuncNotLazy _ _ = throwError HiErrorArityMismatch
 
 evalFuncUnary, evalFuncUnaryPolymorphic :: HiMonad m => HiFun -> HiValue -> Evaluator m HiValue
 evalFuncUnary HiFunNot = evalFuncUnary' takeBool not HiValueBool
@@ -132,9 +128,9 @@ evalFuncUnaryPolymorphic HiFunLength s@(HiValueString _) = evalFuncUnary' takeTe
 evalFuncUnaryPolymorphic HiFunLength l = evalFuncUnary' takeList (toRational . S.length) HiValueNumber l
 evalFuncUnaryPolymorphic HiFunReverse s@(HiValueString _) = evalFuncUnary' takeText T.reverse HiValueString s
 evalFuncUnaryPolymorphic HiFunReverse l = evalFuncUnary' takeList S.reverse HiValueList l
-evalFuncUnaryPolymorphic HiFunCount s@(HiValueString _) = evalFuncUnary' takeText (countL (HiValueString . T.singleton) T.unpack) HiValueDict s
-evalFuncUnaryPolymorphic HiFunCount b@(HiValueBytes _) = evalFuncUnary' takeBinary (countL (HiValueNumber . toRational) B.unpack) HiValueDict b
-evalFuncUnaryPolymorphic HiFunCount l = evalFuncUnary' takeList (countL id toList) HiValueDict l
+evalFuncUnaryPolymorphic HiFunCount s@(HiValueString _) = evalFuncUnary' takeText (countOccurs (HiValueString . T.singleton) T.unpack) HiValueDict s
+evalFuncUnaryPolymorphic HiFunCount b@(HiValueBytes _) = evalFuncUnary' takeBinary (countOccurs (HiValueNumber . toRational) B.unpack) HiValueDict b
+evalFuncUnaryPolymorphic HiFunCount l = evalFuncUnary' takeList (countOccurs id toList) HiValueDict l
 evalFuncUnaryPolymorphic _ _ = throwError HiErrorArityMismatch
 
 evalFuncUnary' :: HiMonad m => ArgTaker m a -> UnaryFunction a b -> (b -> HiValue) -> HiValue -> Evaluator m HiValue
@@ -198,7 +194,7 @@ listIndex _ _ = throwError HiErrorArityMismatch
 bytesIndex :: HiMonad m => B.ByteString -> [HiValue] -> Evaluator m HiValue
 bytesIndex b [el] = do
   idx <- fromIntegral <$> takeInteger el
-  return $ maybe HiValueNull (HiValueNumber . toRational . fst)  (B.uncons $ B.drop idx b) -- B.!? :(
+  return $ maybe HiValueNull (HiValueNumber . toRational . fst)  (B.uncons $ B.drop idx b) -- in bytestring-0.11.0, there is B.!? with O(1) complexity :(
 bytesIndex b [el1, el2] = do
   res <- slice (B.unpack b) el1 el2
   return $ HiValueBytes $ B.pack res
@@ -216,6 +212,8 @@ slice lst l@(HiValueNumber _) r@(HiValueNumber _) = do
     normalize idx = if idx < 0 then idx + length lst else idx
 slice _ _ _ = throwError HiErrorInvalidArgument
 
+-- Auxiliary
+
 dictGet :: HiMonad m => M.Map HiValue HiValue -> [HiValue] -> Evaluator m HiValue
 dictGet m [k] = do
   return $ case M.lookup k m of
@@ -226,13 +224,9 @@ dictGet _ _ = throwError HiErrorArityMismatch
 dictInvert :: M.Map HiValue HiValue -> M.Map HiValue HiValue
 dictInvert m = M.map (HiValueList . S.fromList) (M.fromListWith (++) (map (\(k, v) -> (v, [k])) (M.toList m)))
 
-oone :: Integer
-oone = 1
-
-countL :: Ord b => (b -> HiValue) -> (a -> [b]) -> a -> M.Map HiValue HiValue
-countL keyMapper unpacker l = 
-  let 
-      cnt = M.fromListWith (+) (map (, oone) (unpacker l))
+countOccurs :: Ord b => (b -> HiValue) -> (a -> [b]) -> a -> M.Map HiValue HiValue
+countOccurs keyMapper unpacker l = 
+  let cnt = M.fromListWith (+) (map (, 1 :: Integer) (unpacker l))
   in  M.map (HiValueNumber . toRational) (M.mapKeys keyMapper cnt)
 
 -- ArgTakers
