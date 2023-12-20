@@ -292,5 +292,3 @@ takeTime _ = throwError HiErrorInvalidArgument
 takeDict :: HiMonad m => ArgTaker m (M.Map HiValue HiValue)
 takeDict (HiValueDict d) = return d
 takeDict _ = throwError HiErrorInvalidArgument
-
-

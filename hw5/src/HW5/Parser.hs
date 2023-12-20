@@ -97,10 +97,10 @@ byteArrayLiteral = HiValueBytes . B.pack <$> (takeToken "[#" *> (hex2 `sepEndBy`
 
 value :: Parser HiValue
 value = functionName 
-    <|> numeric 
-    <|> boolean 
-    <|> nullKeyword 
-    <|> stringLiteral 
+    <|> numeric
+    <|> boolean
+    <|> nullKeyword
+    <|> stringLiteral
     <|> byteArrayLiteral
     <|> cwdKeyword
     <|> nowKeyword
